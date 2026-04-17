@@ -139,3 +139,4 @@ def _parse_chunk(lines: List[str], delimiter: str) -> np.ndarray:
         rows.append(values)
 
     return np.array(rows)
+    
