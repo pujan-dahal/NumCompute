@@ -462,3 +462,153 @@ class OneHotEncoder(_BaseScaler):
             output_blocks.append(indicators)
 
         return np.hstack(output_blocks)
+    
+# ===========================================================================
+# SimpleImputer
+
+class SimpleImputer(_BaseScaler):
+    """
+    Fill missing values (NaN) using simple column-based strategies.
+
+    Real-world datasets often contain missing values, and many machine
+    learning models cannot work with NaNs directly.
+
+    This imputer replaces missing values using one of these strategies:
+
+    - mean → replace with column average
+    - median → replace with middle value
+    - most_frequent → replace with most common value
+    - constant → replace with a fixed custom value
+
+    Notes
+    -----
+    - Works column by column
+    - NaN values are ignored when calculating statistics
+    - Useful before scaling, encoding, or model training
+    """
+
+    _VALID_STRATEGIES = {
+        "mean",
+        "median",
+        "most_frequent",
+        "constant"
+    }
+
+    def __init__(
+        self,
+        strategy: str = "mean",
+        fill_value: float = 0.0,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        strategy : str
+            Method used to fill missing values.
+
+            Options:
+            - "mean"
+            - "median"
+            - "most_frequent"
+            - "constant"
+
+        fill_value : float
+            Value used only when strategy="constant".
+            Default is 0.0
+        """
+        if strategy not in self._VALID_STRATEGIES:
+            raise ValueError(
+                f"Unknown strategy '{strategy}'. "
+                f"Choose one of {sorted(self._VALID_STRATEGIES)}"
+            )
+
+        self.strategy = strategy
+        self.fill_value = fill_value
+        self.statistics_: Optional[np.ndarray] = None
+        self.n_features_in_: Optional[int] = None
+
+    def fit(self, X: np.ndarray) -> "SimpleImputer":
+        """
+        Learn the replacement values for each column.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Input data that may contain NaN values
+
+        Returns
+        -------
+        self
+        """
+        X = self._validate(X)
+        self.n_features_in_ = X.shape[1]
+
+        if self.strategy == "mean":
+            self.statistics_ = np.nanmean(X, axis=0)
+
+        elif self.strategy == "median":
+            self.statistics_ = np.nanmedian(X, axis=0)
+
+        elif self.strategy == "most_frequent":
+            stats = np.empty(X.shape[1])
+
+            for col_idx in range(X.shape[1]):
+                col = X[:, col_idx]
+                col = col[~np.isnan(col)]
+
+                if col.size == 0:
+                    stats[col_idx] = np.nan
+                else:
+                    unique_vals, counts = np.unique(
+                        col,
+                        return_counts=True
+                    )
+                    stats[col_idx] = unique_vals[np.argmax(counts)]
+
+            self.statistics_ = stats
+
+        else:  # constant
+            self.statistics_ = np.full(
+                X.shape[1],
+                self.fill_value
+            )
+
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """
+        Replace missing values using the learned statistics.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Data that may contain NaN values
+
+        Returns
+        -------
+        np.ndarray
+            Cleaned data with missing values filled
+        """
+        X = self._validate(
+            X,
+            fitted_attr="statistics_",
+            obj=self
+        )
+
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"Expected {self.n_features_in_} features, got {X.shape[1]}"
+            )
+
+        X_out = X.copy()
+
+        # Find all NaN positions
+        nan_mask = np.isnan(X_out)
+
+        # Replace NaNs column by column
+        for col_idx in range(X_out.shape[1]):
+            col_mask = nan_mask[:, col_idx]
+
+            if col_mask.any():
+                X_out[col_mask, col_idx] = self.statistics_[col_idx]
+
+        return X_out
