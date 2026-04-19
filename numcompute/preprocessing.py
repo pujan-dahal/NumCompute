@@ -350,3 +350,115 @@ class MinMaxScaler(_BaseScaler):
         X_scaled = self._validate(X_scaled, fitted_attr="data_min_", obj=self)
 
         return (X_scaled - self.min_) / self.scale_
+    
+# ===========================================================================
+# OneHotEncoder
+
+class OneHotEncoder(_BaseScaler):
+    """
+    Convert categorical values into binary (0/1) columns.
+
+    Each unique value in a column gets its own separate column in
+    the output. This helps machine learning models work with
+    categorical data.
+
+    Example:
+        [0, 1, 2]
+
+    becomes
+
+        [[1, 0, 0],
+         [0, 1, 0],
+         [0, 0, 1]]
+
+    Notes
+    -----
+    - Useful for categorical features like gender, city, category type, etc.
+    - If `drop_first=True`, the first category is removed to avoid
+      multicollinearity (dummy variable trap).
+    - Only numeric/integer category values are supported directly.
+    """
+
+    def __init__(
+        self,
+        drop_first: bool = False,
+        dtype=np.float64,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        drop_first : bool
+            If True, remove the first category column for each feature.
+            This helps avoid redundant columns in some ML models.
+
+        dtype : data-type
+            Output data type for the encoded matrix.
+            Default is float64.
+        """
+        self.drop_first = drop_first
+        self.dtype = dtype
+        self.categories_: Optional[List[np.ndarray]] = None
+        self.n_features_in_: Optional[int] = None
+
+    def fit(self, X: np.ndarray) -> "OneHotEncoder":
+        """
+        Learn all unique category values from each column.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Input categorical data of shape (samples, features)
+
+        Returns
+        -------
+        self
+        """
+        X = self._validate(X)
+        self.n_features_in_ = X.shape[1]
+
+        self.categories_ = []
+
+        for col_idx in range(X.shape[1]):
+            col = X[:, col_idx]
+
+            # Get unique non-NaN values in sorted order
+            unique_vals = np.unique(col[~np.isnan(col)])
+            self.categories_.append(unique_vals)
+
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """
+        Convert input data into one-hot encoded format.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Data to encode
+
+        Returns
+        -------
+        np.ndarray
+            One-hot encoded matrix
+        """
+        X = self._validate(X, fitted_attr="categories_", obj=self)
+
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"Expected {self.n_features_in_} features, got {X.shape[1]}"
+            )
+
+        output_blocks = []
+
+        for col_idx, cats in enumerate(self.categories_):
+            col = X[:, col_idx]
+
+            # Compare every value with every category
+            indicators = (col[:, None] == cats[None, :]).astype(self.dtype)
+
+            if self.drop_first:
+                indicators = indicators[:, 1:]
+
+            output_blocks.append(indicators)
+
+        return np.hstack(output_blocks)
