@@ -77,3 +77,47 @@ def jacobian(F, x, h=1e-5, method="central"):
             J[:, i] = (np.asarray(F(x1), dtype=float) - Fx) / h
 
     return J
+
+def line_search(f, x, direction, alpha=1.0, rho=0.5, c=1e-4, max_iter=50):
+    """
+    Perform backtracking line search using the Armijo condition.
+    """
+    x = np.asarray(x, dtype=float)
+    direction = np.asarray(direction, dtype=float)
+
+    # Convert scalar inputs into 1D arrays
+    if x.ndim == 0:
+        x = x.reshape(1)
+    if direction.ndim == 0:
+        direction = direction.reshape(1)
+
+    if x.shape != direction.shape:
+        raise ValueError("x and direction must have the same shape")
+
+    if alpha <= 0:
+        raise ValueError("alpha must be positive")
+
+    if not (0 < rho < 1):
+        raise ValueError("rho must be between 0 and 1")
+
+    if not (0 < c < 1):
+        raise ValueError("c must be between 0 and 1")
+
+    if max_iter <= 0:
+        raise ValueError("max_iter must be positive")
+
+    # Compute gradient at current point
+    g = grad(f, x)
+    fx = f(x)
+
+    # Directional derivative
+    slope = np.dot(g, direction)
+
+    # Reduce step size until Armijo condition is satisfied
+    for _ in range(max_iter):
+        x_new = x + alpha * direction
+        if f(x_new) <= fx + c * alpha * slope:
+            return alpha
+        alpha *= rho
+
+    return alpha
