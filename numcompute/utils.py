@@ -88,3 +88,80 @@ def logsumexp(x, axis=None, keepdims=False):
         out = np.squeeze(out, axis=axis)
 
     return out
+
+def top_k_indices(x, k, largest=True):
+    """
+    Return indices of top-k elements.
+    """
+    x = np.asarray(x)
+
+    if x.ndim != 1:
+        raise ValueError("x must be a 1D array")
+
+    if k <= 0 or k > len(x):
+        raise ValueError("k must be between 1 and len(x)")
+
+    if largest:
+        idx = np.argpartition(x, -k)[-k:]
+        idx = idx[np.argsort(x[idx])[::-1]]
+    else:
+        idx = np.argpartition(x, k - 1)[:k]
+        idx = idx[np.argsort(x[idx])]
+
+    return idx
+
+
+def top_k_values(x, k, largest=True):
+    """
+    Return top-k values.
+    """
+    x = np.asarray(x)
+
+    idx = top_k_indices(x, k, largest=largest)
+    return x[idx]
+
+
+def make_batches(X, batch_size, shuffle=False, random_state=None):
+    """
+    Yield mini-batches from input data.
+    """
+    X = np.asarray(X)
+
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+
+    indices = np.arange(len(X))
+
+    if shuffle:
+        rng = np.random.default_rng(random_state)
+        rng.shuffle(indices)
+
+    for start in range(0, len(X), batch_size):
+        end = start + batch_size
+        batch_idx = indices[start:end]
+        yield X[batch_idx]
+
+
+def make_batches_xy(X, y, batch_size, shuffle=False, random_state=None):
+    """
+    Yield mini-batches from X and y together.
+    """
+    X = np.asarray(X)
+    y = np.asarray(y)
+
+    if len(X) != len(y):
+        raise ValueError("X and y must have the same number of rows")
+
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+
+    indices = np.arange(len(X))
+
+    if shuffle:
+        rng = np.random.default_rng(random_state)
+        rng.shuffle(indices)
+
+    for start in range(0, len(X), batch_size):
+        end = start + batch_size
+        batch_idx = indices[start:end]
+        yield X[batch_idx], y[batch_idx]
