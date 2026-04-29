@@ -1,10 +1,25 @@
+"""
+Test Module for Numerical Optimization Functions
+
+This module contains unit tests for the numerical optimization functions
+including gradient computation, Jacobian estimation, and line search.
+
+Tests cover:
+    - Gradient computation with central and forward differences
+    - Jacobian matrix computation for vector-valued functions
+    - Line search with Armijo condition
+    - Error handling for invalid inputs
+"""
+
 import numpy as np
 import pytest
 
 from numerical import grad, jacobian, line_search
 
 
+# Tests for gradient computation
 def test_grad_central_quadratic():
+    """Test gradient with central difference on quadratic function"""
     def f(x):
         return x[0] ** 2 + 3 * x[1] ** 2
 
@@ -16,6 +31,7 @@ def test_grad_central_quadratic():
 
 
 def test_grad_forward_quadratic():
+    """Test gradient with forward difference on quadratic function"""
     def f(x):
         return x[0] ** 2 + x[1] ** 2
 
@@ -27,6 +43,7 @@ def test_grad_forward_quadratic():
 
 
 def test_grad_scalar_input():
+    """Test gradient with scalar input"""
     def f(x):
         return x[0] ** 2
 
@@ -36,6 +53,7 @@ def test_grad_scalar_input():
 
 
 def test_grad_invalid_h():
+    """Test gradient raises error for invalid step size"""
     def f(x):
         return np.sum(x)
 
@@ -44,6 +62,7 @@ def test_grad_invalid_h():
 
 
 def test_grad_invalid_method():
+    """Test gradient raises error for invalid method"""
     def f(x):
         return np.sum(x)
 
@@ -51,7 +70,9 @@ def test_grad_invalid_method():
         grad(f, [1, 2], method="invalid")
 
 
+# Tests for Jacobian computation
 def test_jacobian_vector_function():
+    """Test Jacobian for vector-valued function"""
     def F(x):
         return np.array([
             x[0] + x[1],
@@ -70,6 +91,7 @@ def test_jacobian_vector_function():
 
 
 def test_jacobian_scalar_output():
+    """Test Jacobian for scalar output function"""
     def F(x):
         return x[0] ** 2 + x[1]
 
@@ -81,6 +103,7 @@ def test_jacobian_scalar_output():
 
 
 def test_jacobian_invalid_method():
+    """Test Jacobian raises error for invalid method"""
     def F(x):
         return x
 
@@ -88,7 +111,9 @@ def test_jacobian_invalid_method():
         jacobian(F, [1, 2], method="bad")
 
 
+# Tests for line search
 def test_line_search_returns_positive_alpha():
+    """Test line search returns positive step size"""
     def f(x):
         return np.sum((x - 1) ** 2)
 
@@ -102,6 +127,7 @@ def test_line_search_returns_positive_alpha():
 
 
 def test_line_search_decreases_function_value():
+    """Test line search produces sufficient decrease"""
     def f(x):
         return np.sum((x - 1) ** 2)
 
@@ -114,6 +140,7 @@ def test_line_search_decreases_function_value():
 
 
 def test_line_search_shape_mismatch():
+    """Test line search raises error for shape mismatch"""
     def f(x):
         return np.sum(x ** 2)
 
@@ -122,6 +149,7 @@ def test_line_search_shape_mismatch():
 
 
 def test_line_search_invalid_alpha():
+    """Test line search raises error for invalid alpha"""
     def f(x):
         return np.sum(x ** 2)
 
@@ -130,16 +158,21 @@ def test_line_search_invalid_alpha():
 
 
 def test_line_search_invalid_rho():
+    """Test line search raises error for invalid rho"""
     def f(x):
         return np.sum(x ** 2)
 
     with pytest.raises(ValueError):
         line_search(f, [1, 2], [-1, -1], rho=1.5)
 
+// 
 
 def test_line_search_invalid_c():
+    """Test line search raises error for invalid c parameter"""
     def f(x):
         return np.sum(x ** 2)
 
     with pytest.raises(ValueError):
         line_search(f, [1, 2], [-1, -1], c=2)
+
+        //

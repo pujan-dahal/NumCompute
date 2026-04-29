@@ -1,189 +1,145 @@
 import numpy as np
+import pytest
+
+from numerical import grad, jacobian, line_search
 
 
-class Transformer:
-    """
-    Base class for transformers.
-    """
+def test_grad_central_quadratic():
+    def f(x):
+        return x[0] ** 2 + 3 * x[1] ** 2
 
-    def fit(self, X, y=None):
-        """
-        Fit the transformer.
-        """
-        return self
+    x = np.array([2.0, 3.0])
+    result = grad(f, x, method="central")
 
-    def transform(self, X):
-        """
-        Transform the input data.
-        """
-        raise NotImplementedError("transform must be implemented")
-
-    def fit_transform(self, X, y=None):
-        """
-        Fit the transformer and transform the data.
-        """
-        self.fit(X, y)
-        return self.transform(X)
+    expected = np.array([4.0, 18.0])
+    assert np.allclose(result, expected, atol=1e-4)
 
 
-class Estimator:
-    """
-    Base class for estimators.
-    """
+def test_grad_forward_quadratic():
+    def f(x):
+        return x[0] ** 2 + x[1] ** 2
 
-    def fit(self, X, y):
-        """
-        Fit the estimator.
-        """
-        raise NotImplementedError("fit must be implemented")
+    x = np.array([1.0, 2.0])
+    result = grad(f, x, method="forward")
 
-    def predict(self, X):
-        """
-        Predict using the estimator.
-        """
-        raise NotImplementedError("predict must be implemented")
-
-class Compose:
-    """
-    Chain multiple transformers and an optional final estimator.
-    """
-
-    def __init__(self, steps):
-        if not isinstance(steps, list) or len(steps) == 0:
-            raise ValueError("steps must be a non-empty list")
-
-        self.steps = steps
-
-    def fit(self, X, y=None):
-        """
-        Fit all steps in order.
-        """
-        Xt = X
-
-        # Fit and transform all steps except the last one
-        for name, step in self.steps[:-1]:
-            if not hasattr(step, "fit") or not hasattr(step, "transform"):
-                raise TypeError(f"Step '{name}' must implement fit and transform")
-            Xt = step.fit_transform(Xt, y)
-
-        # Fit the last step
-        name, last_step = self.steps[-1]
-
-        if hasattr(last_step, "predict"):
-            last_step.fit(Xt, y)
-        elif hasattr(last_step, "transform"):
-            last_step.fit(Xt, y)
-        else:
-            raise TypeError(f"Step '{name}' must implement transform or predict")
-
-        return self
-
-    def transform(self, X):
-        """
-        Apply all transform steps in order.
-        """
-        Xt = X
-
-        for name, step in self.steps:
-            if not hasattr(step, "transform"):
-                raise TypeError(f"Step '{name}' does not implement transform")
-            Xt = step.transform(Xt)
-
-        return Xt
-
-    def fit_transform(self, X, y=None):
-        """
-        Fit all steps and return transformed output.
-        """
-        Xt = X
-
-        for name, step in self.steps:
-            if not hasattr(step, "fit") or not hasattr(step, "transform"):
-                raise TypeError(f"Step '{name}' must implement fit and transform")
-            Xt = step.fit_transform(Xt, y)
-
-        return Xt
-
-    def predict(self, X):
-        """
-        Apply all transformers, then predict using the final estimator.
-        """
-        Xt = X
-
-        # Transform through all steps except the last one
-        for name, step in self.steps[:-1]:
-            if not hasattr(step, "transform"):
-                raise TypeError(f"Step '{name}' does not implement transform")
-            Xt = step.transform(Xt)
-
-        # Final step must be an estimator
-        name, last_step = self.steps[-1]
-
-        if not hasattr(last_step, "predict"):
-            raise TypeError(f"Final step '{name}' does not implement predict")
-
-        return last_step.predict(Xt)
+    expected = np.array([2.0, 4.0])
+    assert np.allclose(result, expected, atol=1e-3)
 
 
-class FeatureUnion:
-    """
-    Apply multiple transformers in parallel and combine their outputs.
-    """
+def test_grad_scalar_input():
+    def f(x):
+        return x[0] ** 2
 
-    def __init__(self, transformers):
-        if not isinstance(transformers, list) or len(transformers) == 0:
-            raise ValueError("transformers must be a non-empty list")
+    result = grad(f, 3.0)
 
-        self.transformers = transformers
-
-    def fit(self, X, y=None):
-        """
-        Fit all transformers.
-        """
-        for name, transformer in self.transformers:
-            if not hasattr(transformer, "fit") or not hasattr(transformer, "transform"):
-                raise TypeError(f"Transformer '{name}' must implement fit and transform")
-            transformer.fit(X, y)
-
-        return self
-
-    def transform(self, X):
-        """
-        Transform data with all transformers and concatenate outputs.
-        """
-        outputs = []
-
-        for name, transformer in self.transformers:
-            Xt = transformer.transform(X)
-            Xt = np.asarray(Xt)
-
-            # Convert 1D output into column form
-            if Xt.ndim == 1:
-                Xt = Xt.reshape(-1, 1)
-
-            outputs.append(Xt)
-
-        return np.hstack(outputs)
-
-    def fit_transform(self, X, y=None):
-        """
-        Fit all transformers, transform data, and concatenate outputs.
-        """
-        outputs = []
-
-        for name, transformer in self.transformers:
-            if not hasattr(transformer, "fit") or not hasattr(transformer, "transform"):
-                raise TypeError(f"Transformer '{name}' must implement fit and transform")
-
-            Xt = transformer.fit_transform(X, y)
-            Xt = np.asarray(Xt)
-
-            # Convert 1D output into column form
-            if Xt.ndim == 1:
-                Xt = Xt.reshape(-1, 1)
-
-            outputs.append(Xt)
-
-        return np.hstack(outputs)
+    assert np.allclose(result, np.array([6.0]), atol=1e-4)
 
 
+def test_grad_invalid_h():
+    def f(x):
+        return np.sum(x)
+
+    with pytest.raises(ValueError):
+        grad(f, [1, 2], h=0)
+
+
+def test_grad_invalid_method():
+    def f(x):
+        return np.sum(x)
+
+    with pytest.raises(ValueError):
+        grad(f, [1, 2], method="invalid")
+
+
+def test_jacobian_vector_function():
+    def F(x):
+        return np.array([
+            x[0] + x[1],
+            x[0] * x[1]
+        ])
+
+    x = np.array([2.0, 3.0])
+    result = jacobian(F, x)
+
+    expected = np.array([
+        [1.0, 1.0],
+        [3.0, 2.0]
+    ])
+
+    assert np.allclose(result, expected, atol=1e-4)
+
+
+def test_jacobian_scalar_output():
+    def F(x):
+        return x[0] ** 2 + x[1]
+
+    x = np.array([3.0, 4.0])
+    result = jacobian(F, x)
+
+    expected = np.array([[6.0, 1.0]])
+    assert np.allclose(result, expected, atol=1e-4)
+
+
+def test_jacobian_invalid_method():
+    def F(x):
+        return x
+
+    with pytest.raises(ValueError):
+        jacobian(F, [1, 2], method="bad")
+
+
+def test_line_search_returns_positive_alpha():
+    def f(x):
+        return np.sum((x - 1) ** 2)
+
+    x = np.array([0.0, 0.0])
+    direction = -grad(f, x)
+
+    alpha = line_search(f, x, direction)
+
+    assert alpha > 0
+    assert alpha <= 1.0
+
+
+def test_line_search_decreases_function_value():
+    def f(x):
+        return np.sum((x - 1) ** 2)
+
+    x = np.array([0.0, 0.0])
+    direction = -grad(f, x)
+
+    alpha = line_search(f, x, direction)
+
+    assert f(x + alpha * direction) <= f(x)
+
+
+def test_line_search_shape_mismatch():
+    def f(x):
+        return np.sum(x ** 2)
+
+    with pytest.raises(ValueError):
+        line_search(f, np.array([1, 2]), np.array([1, 2, 3]))
+
+
+def test_line_search_invalid_alpha():
+    def f(x):
+        return np.sum(x ** 2)
+
+    with pytest.raises(ValueError):
+        line_search(f, [1, 2], [-1, -1], alpha=0)
+
+
+def test_line_search_invalid_rho():
+    def f(x):
+        return np.sum(x ** 2)
+
+    with pytest.raises(ValueError):
+        line_search(f, [1, 2], [-1, -1], rho=1.5)
+
+
+def test_line_search_invalid_c():
+    def f(x):
+        return np.sum(x ** 2)
+
+    with pytest.raises(ValueError):
+        line_search(f, [1, 2], [-1, -1], c=2)
