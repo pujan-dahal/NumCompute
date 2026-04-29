@@ -1,22 +1,12 @@
 """
-numcompute/io.py
-================
 
 Basic CSV loading utilities for NumCompute.
-
-This is the starting point for handling tabular data using NumPy.
-Focus is on simplicity and core functionality.
-
-Author: ( Anshu Shrestha)
+Author: Anshu Shrestha
 """
 
 import numpy as np
 from typing import Iterator, List
 
-
-# ===========================================================================
-# Core Functions 
-# ===========================================================================
 
 def load_csv(
     filepath: str,
@@ -25,20 +15,6 @@ def load_csv(
 ) -> np.ndarray:
     """
     Load a CSV file into a NumPy array.
-
-    Parameters
-    ----------
-    filepath : str
-        Path to the CSV file
-    delimiter : str
-        Column separator (default: comma)
-    skip_header : bool
-        Skip first row if it contains column names
-
-    Returns
-    -------
-    np.ndarray
-        2D array of data
     """
     data = np.genfromtxt(
         filepath,
@@ -47,7 +23,6 @@ def load_csv(
         dtype=float
     )
 
-    # Ensure output is always 2D
     if data.ndim == 1:
         data = data.reshape(-1, 1)
 
@@ -60,18 +35,6 @@ def get_headers(
 ) -> List[str]:
     """
     Read column names from the first row of a CSV file.
-
-    Parameters
-    ----------
-    filepath : str
-        Path to file
-    delimiter : str
-        Column separator
-
-    Returns
-    -------
-    list of str
-        Column names
     """
     with open(filepath, "r") as f:
         first_line = f.readline().strip()
@@ -86,23 +49,7 @@ def load_csv_chunked(
     skip_header: bool = True,
 ) -> Iterator[np.ndarray]:
     """
-    Load a CSV file in chunks (useful for large files).
-
-    Parameters
-    ----------
-    filepath : str
-        Path to CSV file
-    chunk_size : int
-        Number of rows per chunk
-    delimiter : str
-        Column separator
-    skip_header : bool
-        Skip first row
-
-    Yields
-    ------
-    np.ndarray
-        Chunk of data
+    Load a CSV file in chunks.
     """
     with open(filepath, "r") as f:
         if skip_header:
@@ -112,6 +59,7 @@ def load_csv_chunked(
 
         for line in f:
             line = line.strip()
+
             if not line:
                 continue
 
@@ -125,18 +73,14 @@ def load_csv_chunked(
             yield _parse_chunk(buffer, delimiter)
 
 
-# ===========================================================================
-# Helper Function
-# ===========================================================================
-
 def _parse_chunk(lines: List[str], delimiter: str) -> np.ndarray:
     """
     Convert raw lines into a NumPy array.
     """
     rows = []
+
     for line in lines:
         values = [float(x) for x in line.split(delimiter)]
         rows.append(values)
 
     return np.array(rows)
-    
