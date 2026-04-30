@@ -386,7 +386,7 @@ def binary_search(arr, target):
             right = mid
 
     insertion_index = left
-    found = insertion_index < len(arr) and arr[insertion_index] == target
+    found = (insertion_index < len(arr) and bool (arr[insertion_index] == target))
 
 
     return insertion_index, found
