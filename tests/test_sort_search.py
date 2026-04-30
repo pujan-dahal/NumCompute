@@ -107,7 +107,7 @@ def test_top_k_sorted():
     assert np.all(vals[0] == np.array([5, 3]))
 
 
-# ---------------- NON-CONTIGUOUS ----------------
+# ---------------- NON-CONTIGUOUS topk----------------
 
 def test_non_contiguous_topk():
     """Test topk works with non-contiguous (strided) arrays."""

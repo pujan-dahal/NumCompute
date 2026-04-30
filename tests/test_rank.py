@@ -137,7 +137,7 @@ def test_percentiles_multiple():
     assert len(ps) == 3
 
 
-# ---------------- NON-CONTIGUOUS ----------------
+# ---------------- NON-CONTIGUOUS rank ----------------
 
 def test_non_contiguous_rank():
     """Test rank works with non-contiguous arrays."""
