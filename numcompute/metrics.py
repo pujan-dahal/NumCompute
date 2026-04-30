@@ -34,15 +34,7 @@ class Classification:
         recall = Classification.recall(y_true, y_pred)
         f1 = 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0
         return f1
-    
-    @staticmethod
-    def roc_curve(y_true, y_pred):
-        pass
 
-    @staticmethod
-    def auc(y_true, y_pred):
-        pass
-        
 
 class Regression:
     @staticmethod
