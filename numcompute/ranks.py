@@ -2,102 +2,166 @@ import numpy as np
 
 #ranking
 
-def rankdata(x):
+def rank(data, method="average"):
     """
-    Assign ranks to data without tie handling (ordinal ranking).
+    Compute ranks of elements with tie handling.
 
     Parameters
     ----------
-    x : np.ndarray
+    data : np.ndarray of shape (n,)
+        Input 1D array.
+    method : {'average', 'dense', 'ordinal'}, optional
+        Ranking method:
+        - 'average': average rank for ties
+        - 'dense': consecutive ranks without gaps
+        - 'ordinal': unique ranks based on order
 
     Returns
     -------
-    np.ndarray
-        Ranks (0-based).
+    ranks : np.ndarray of shape (n,)
+        Rank values (float for 'average', int otherwise).
+
+    Raises
+    ------
+    ValueError
+        If input is not 1D or method is invalid.
+
+    Notes
+    -----
+    Stable sorting ensures consistent tie handling.
+
+    Time Complexity
+    ---------------
+    O(n log n)
+
+    Space Complexity
+    ----------------
+    O(n)
     """
-    x = np.asarray(x)
+    
+    data = np.asarray(data)
 
-    if x.ndim != 1:
+    if data.ndim != 1:
         raise ValueError("rankdata only supports 1D arrays")
+    if method not in ["average", "dense", "ordinal"]:
+        raise ValueError("method must be 'average', 'dense', or 'ordinal'")
 
-    temp = np.argsort(x)
-    ranks = np.empty_like(temp)
-    ranks[temp] = np.arange(len(x))
+    n = len(data)
+
+    if n == 0:
+        return np.array([])
+
+
+    sorted_idx = np.argsort(data, kind="stable")
+    sorted_data = data[sorted_idx]
+
+    if method == "ordinal":
+        ranks = np.empty(n, dtype=int)
+        ranks[sorted_idx] = np.arange(n)
+        return ranks
+
+    ranks = np.zeros(n, dtype=float)
+
+    i = 0
+    dense_rank = 0
+
+    while i < n:
+        j = i
+
+        while j < n and sorted_data[j] == sorted_data[i]:
+            j += 1
+
+        if method == "average":
+            rank_value = (i + j - 1) / 2.0
+        else:
+            rank_value = dense_rank
+            dense_rank += 1
+
+        ranks[sorted_idx[i:j]] = rank_value
+        i = j
+
 
     return ranks
+
+def rankdata(x):
+    return rank(x, method="ordinal")
+
 
 
 def rank_with_ties(x):
-    """
-    Assign ranks with average tie handling.
+    return rank(x, method="average")
+    
 
-    Parameters
-    ----------
-    x : np.ndarray
-
-    Returns
-    -------
-    np.ndarray
-        Ranks (float).
-
-    Example
-    -------
-    [10, 20, 20, 40] -> [0, 1.5, 1.5, 3]
-    """
-    x = np.asarray(x)
-
-    if x.ndim != 1:
-        raise ValueError("rank_with_ties only supports 1D arrays")
-
-    sorted_idx = np.argsort(x)
-    sorted_x = x[sorted_idx]
-
-    ranks = np.zeros(len(x), dtype=float)
-
-    i = 0
-    while i < len(x):
-        j = i
-        while j < len(x) and sorted_x[j] == sorted_x[i]:
-            j += 1
-
-        avg_rank = (i + j - 1) / 2.0
-        ranks[sorted_idx[i:j]] = avg_rank
-
-        i = j
-
-    return ranks
 
 #percentiles
 
-def percentile(x, q):
+def percentile(x, q, interpolation="linear"):
     """
-    Compute the q-th percentile.
+    Compute the q-th percentile of the data.
 
     Parameters
     ----------
-    x : np.ndarray
-    q : float (0-100)
+    x : np.ndarray of shape (n,)
+        Input data.
+    q : float
+        Percentile value in range [0, 100].
+    interpolation : {'linear', 'lower', 'higher', 'midpoint'}
+        Interpolation method.
 
     Returns
     -------
     float
+        Computed percentile value.
+
+    Raises
+    ------
+    ValueError
+        If input is invalid, empty, or contains only NaNs.
+
+    Notes
+    -----
+    NaN values are ignored before computation.
+
+    Time Complexity
+    ---------------
+    O(n log n)
+
+    Space Complexity
+    ----------------
+    O(n)
     """
-    x = np.asarray(x)
+  
+    x = np.asarray(x, dtype=float)
 
     if x.ndim != 1:
         raise ValueError("percentile only supports 1D arrays")
+    if x.size == 0:
+        raise ValueError("empty array")
     if not (0 <= q <= 100):
         raise ValueError("q must be between 0 and 100")
+    if interpolation not in ["linear", "lower", "higher", "midpoint"]:
+        raise ValueError("interpolation must be 'linear', 'lower', 'higher', or 'midpoint'")
+
+    x = x[~np.isnan(x)]
+
+    if x.size == 0:
+        raise ValueError("array contains only NaN values")
+
 
     x_sorted = np.sort(x)
     n = len(x_sorted)
 
-    if n == 0:
-        raise ValueError("empty array")
-
     pos = (q / 100) * (n - 1)
     lower = int(np.floor(pos))
     upper = int(np.ceil(pos))
+
+    if interpolation  == "lower":
+        return x_sorted[lower]
+    if interpolation == "higher":
+        return x_sorted[upper]
+
+    if interpolation == "midpoint":
+        return (x_sorted[lower] + x_sorted[upper]) / 2.0
 
     if lower == upper:
         return x_sorted[lower]
@@ -106,17 +170,29 @@ def percentile(x, q):
     return (1 - weight) * x_sorted[lower] + weight * x_sorted[upper]
 
 
-def percentiles(x, qs):
+def percentiles(x, qs, interpolation="linear"):
     """
     Compute multiple percentiles.
 
     Parameters
     ----------
-    x : np.ndarray
+    x : np.ndarray of shape (n,)
     qs : array-like
+        Sequence of percentile values.
+    interpolation : str
 
     Returns
     -------
     np.ndarray
+        Array of percentile values.
+
+    Time Complexity
+    ---------------
+    O(m * n log n), where m = len(qs)
+
+    Space Complexity
+    ----------------
+    O(m)
     """
-    return np.array([percentile(x, q) for q in qs])
+    
+    return np.array([percentile(x, q, interpolation=interpolation) for q in qs])
