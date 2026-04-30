@@ -14,7 +14,7 @@ Tests cover:
 import numpy as np
 import pytest
 
-from numerical import grad, jacobian, line_search
+from numcompute.optim import grad, jacobian, line_search
 
 
 # Tests for gradient computation
@@ -165,7 +165,7 @@ def test_line_search_invalid_rho():
     with pytest.raises(ValueError):
         line_search(f, [1, 2], [-1, -1], rho=1.5)
 
-// 
+
 
 def test_line_search_invalid_c():
     """Test line search raises error for invalid c parameter"""
@@ -175,4 +175,4 @@ def test_line_search_invalid_c():
     with pytest.raises(ValueError):
         line_search(f, [1, 2], [-1, -1], c=2)
 
-        //
+    

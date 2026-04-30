@@ -1,145 +1,139 @@
 import numpy as np
-import pytest
-
-from numerical import grad, jacobian, line_search
 
 
-def test_grad_central_quadratic():
-    def f(x):
-        return x[0] ** 2 + 3 * x[1] ** 2
+class Pipeline:
+    def __init__(self, steps):
+        if not isinstance(steps, list) or len(steps) == 0:
+            raise ValueError("steps must be a non-empty list")
 
-    x = np.array([2.0, 3.0])
-    result = grad(f, x, method="central")
+        self.steps = steps
+        self.named_steps = {}
 
-    expected = np.array([4.0, 18.0])
-    assert np.allclose(result, expected, atol=1e-4)
+        for step in steps:
+            if not isinstance(step, tuple) or len(step) != 2:
+                raise TypeError("each step must be a tuple like ('name', object)")
 
+            name, obj = step
 
-def test_grad_forward_quadratic():
-    def f(x):
-        return x[0] ** 2 + x[1] ** 2
+            if not isinstance(name, str) or name == "":
+                raise ValueError("step name must be a non-empty string")
 
-    x = np.array([1.0, 2.0])
-    result = grad(f, x, method="forward")
+            if name in self.named_steps:
+                raise ValueError("step names must be unique")
 
-    expected = np.array([2.0, 4.0])
-    assert np.allclose(result, expected, atol=1e-3)
+            if obj is None:
+                raise ValueError("step object cannot be None")
 
+            self.named_steps[name] = obj
 
-def test_grad_scalar_input():
-    def f(x):
-        return x[0] ** 2
+    def fit(self, X, y=None):
+        X_current = X
 
-    result = grad(f, 3.0)
+        for name, step in self.steps[:-1]:
+            if not hasattr(step, "fit") or not hasattr(step, "transform"):
+                raise TypeError(f"step '{name}' must have fit() and transform()")
 
-    assert np.allclose(result, np.array([6.0]), atol=1e-4)
+            step.fit(X_current)
+            X_current = step.transform(X_current)
 
+        last_name, last_step = self.steps[-1]
 
-def test_grad_invalid_h():
-    def f(x):
-        return np.sum(x)
+        if hasattr(last_step, "fit"):
+            if y is None:
+                last_step.fit(X_current)
+            else:
+                last_step.fit(X_current, y)
 
-    with pytest.raises(ValueError):
-        grad(f, [1, 2], h=0)
+        return self
 
+    def transform(self, X):
+        X_current = X
 
-def test_grad_invalid_method():
-    def f(x):
-        return np.sum(x)
+        for name, step in self.steps:
+            if not hasattr(step, "transform"):
+                raise TypeError(f"step '{name}' does not have transform()")
 
-    with pytest.raises(ValueError):
-        grad(f, [1, 2], method="invalid")
+            X_current = step.transform(X_current)
 
+        return X_current
 
-def test_jacobian_vector_function():
-    def F(x):
-        return np.array([
-            x[0] + x[1],
-            x[0] * x[1]
-        ])
+    def fit_transform(self, X, y=None):
+        X_current = X
 
-    x = np.array([2.0, 3.0])
-    result = jacobian(F, x)
+        for name, step in self.steps:
+            if not hasattr(step, "fit") or not hasattr(step, "transform"):
+                raise TypeError(f"step '{name}' must have fit() and transform()")
 
-    expected = np.array([
-        [1.0, 1.0],
-        [3.0, 2.0]
-    ])
+            step.fit(X_current)
+            X_current = step.transform(X_current)
 
-    assert np.allclose(result, expected, atol=1e-4)
+        return X_current
 
+    def predict(self, X):
+        X_current = X
 
-def test_jacobian_scalar_output():
-    def F(x):
-        return x[0] ** 2 + x[1]
+        for name, step in self.steps[:-1]:
+            if not hasattr(step, "transform"):
+                raise TypeError(f"step '{name}' does not have transform()")
 
-    x = np.array([3.0, 4.0])
-    result = jacobian(F, x)
+            X_current = step.transform(X_current)
 
-    expected = np.array([[6.0, 1.0]])
-    assert np.allclose(result, expected, atol=1e-4)
+        last_name, last_step = self.steps[-1]
 
+        if not hasattr(last_step, "predict"):
+            raise TypeError(f"last step '{last_name}' does not have predict()")
 
-def test_jacobian_invalid_method():
-    def F(x):
-        return x
-
-    with pytest.raises(ValueError):
-        jacobian(F, [1, 2], method="bad")
-
-
-def test_line_search_returns_positive_alpha():
-    def f(x):
-        return np.sum((x - 1) ** 2)
-
-    x = np.array([0.0, 0.0])
-    direction = -grad(f, x)
-
-    alpha = line_search(f, x, direction)
-
-    assert alpha > 0
-    assert alpha <= 1.0
+        return last_step.predict(X_current)
 
 
-def test_line_search_decreases_function_value():
-    def f(x):
-        return np.sum((x - 1) ** 2)
+class FeatureUnion:
+    def __init__(self, transformers):
+        if not isinstance(transformers, list) or len(transformers) == 0:
+            raise ValueError("transformers must be a non-empty list")
 
-    x = np.array([0.0, 0.0])
-    direction = -grad(f, x)
+        self.transformers = transformers
+        self.named_transformers = {}
 
-    alpha = line_search(f, x, direction)
+        for item in transformers:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise TypeError("each transformer must be a tuple like ('name', object)")
 
-    assert f(x + alpha * direction) <= f(x)
+            name, transformer = item
+
+            if name in self.named_transformers:
+                raise ValueError("transformer names must be unique")
+
+            self.named_transformers[name] = transformer
+
+    def fit(self, X, y=None):
+        for name, transformer in self.transformers:
+            if not hasattr(transformer, "fit"):
+                raise TypeError(f"transformer '{name}' does not have fit()")
+
+            transformer.fit(X)
+
+        return self
+
+    def transform(self, X):
+        outputs = []
+
+        for name, transformer in self.transformers:
+            if not hasattr(transformer, "transform"):
+                raise TypeError(f"transformer '{name}' does not have transform()")
+
+            output = np.asarray(transformer.transform(X))
+
+            if output.ndim == 1:
+                output = output.reshape(-1, 1)
+
+            outputs.append(output)
+
+        return np.hstack(outputs)
+
+    def fit_transform(self, X, y=None):
+        self.fit(X, y)
+        return self.transform(X)
 
 
-def test_line_search_shape_mismatch():
-    def f(x):
-        return np.sum(x ** 2)
-
-    with pytest.raises(ValueError):
-        line_search(f, np.array([1, 2]), np.array([1, 2, 3]))
-
-
-def test_line_search_invalid_alpha():
-    def f(x):
-        return np.sum(x ** 2)
-
-    with pytest.raises(ValueError):
-        line_search(f, [1, 2], [-1, -1], alpha=0)
-
-
-def test_line_search_invalid_rho():
-    def f(x):
-        return np.sum(x ** 2)
-
-    with pytest.raises(ValueError):
-        line_search(f, [1, 2], [-1, -1], rho=1.5)
-
-
-def test_line_search_invalid_c():
-    def f(x):
-        return np.sum(x ** 2)
-
-    with pytest.raises(ValueError):
-        line_search(f, [1, 2], [-1, -1], c=2)
+class Compose(Pipeline):
+    pass
