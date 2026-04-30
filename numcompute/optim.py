@@ -2,7 +2,35 @@ import numpy as np
 
 
 def grad(f, x, h=1e-5, method="central"):
-    """Finds the gradient using finite differences"""
+    """
+    Estimate the gradient of a scalar function using finite differences
+
+    Parameters
+    ----------
+    f : callable
+        Function that takes x and returns one number
+    x : array like
+        Point where the gradient is calculated
+    h : float
+        Step size used for the finite difference
+    method : str
+        Either central or forward
+
+    Returns
+    -------
+    numpy.ndarray
+        Gradient values with the same length as x
+
+    Raises
+    ------
+    ValueError
+        If h is not positive or method is invalid
+
+    Complexity
+    ----------
+    Time O n function evaluations
+    Space O n
+    """
     x = np.asarray(x, dtype=float)
 
     # Convert scalar input into a 1D array
@@ -38,7 +66,35 @@ def grad(f, x, h=1e-5, method="central"):
 
 
 def jacobian(F, x, h=1e-5, method="central"):
-    """Finds the Jacobian matrix using finite differences"""
+    """
+    Estimate the Jacobian matrix of a vector function using finite differences
+
+    Parameters
+    ----------
+    F : callable
+        Function that takes x and returns one or more values
+    x : array like
+        Point where the Jacobian is calculated
+    h : float
+        Step size used for the finite difference
+    method : str
+        Either central or forward
+
+    Returns
+    -------
+    numpy.ndarray
+        Matrix with shape n_outputs by n_inputs
+
+    Raises
+    ------
+    ValueError
+        If h is not positive or method is invalid
+
+    Complexity
+    ----------
+    Time O n function evaluations where n is the number of inputs
+    Space O m n where m is outputs and n is inputs
+    """
     x = np.asarray(x, dtype=float)
 
     # Convert scalar input into 1D array
@@ -80,7 +136,41 @@ def jacobian(F, x, h=1e-5, method="central"):
 
 
 def line_search(f, x, direction, alpha=1.0, rho=0.5, c=1e-4, max_iter=50):
-    """Finds a good step size by reducing alpha"""
+    """
+    Find a step size using backtracking line search
+
+    Parameters
+    ----------
+    f : callable
+        Objective function that takes x and returns one number
+    x : array like
+        Starting point
+    direction : array like
+        Direction to move from x
+    alpha : float
+        Starting step size
+    rho : float
+        Amount used to shrink alpha each time
+    c : float
+        Armijo condition constant
+    max_iter : int
+        Maximum number of shrink steps
+
+    Returns
+    -------
+    float
+        Step size accepted by the search
+
+    Raises
+    ------
+    ValueError
+        If shapes do not match or search settings are invalid
+
+    Complexity
+    ----------
+    Time O max_iter times gradient cost
+    Space O n
+    """
     x = np.asarray(x, dtype=float)
     direction = np.asarray(direction, dtype=float)
 

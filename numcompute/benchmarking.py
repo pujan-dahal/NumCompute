@@ -3,7 +3,37 @@ import numpy as np
 
 
 def time_function(func, *args, repeats=5, warmup=1, **kwargs):
-    """Times a function over many runs"""
+    """
+    Time a function over many runs
+
+    Parameters
+    ----------
+    func : callable
+        Function to time
+    *args
+        Positional arguments passed to func
+    repeats : int
+        Number of timed runs
+    warmup : int
+        Number of untimed runs before timing starts
+    **kwargs
+        Keyword arguments passed to func
+
+    Returns
+    -------
+    dict
+        Times array plus mean std min and max in seconds
+
+    Raises
+    ------
+    ValueError
+        If repeats is not positive or warmup is negative
+
+    Complexity
+    ----------
+    Time O repeats plus warmup function calls
+    Space O repeats
+    """
     if repeats <= 0:
         raise ValueError("repeats must be positive")
 
@@ -35,7 +65,39 @@ def time_function(func, *args, repeats=5, warmup=1, **kwargs):
 
 def compare_functions(func1, func2, args=(), kwargs1=None, kwargs2=None, repeats=5, warmup=1,
                       name1="vectorized", name2="loop"):
-    """Compares how long two functions take"""
+    """
+    Compare the runtime of two functions on the same input
+
+    Parameters
+    ----------
+    func1 func2 : callable
+        Functions to compare
+    args : tuple
+        Positional arguments passed to both functions
+    kwargs1 kwargs2 : dict or None
+        Keyword arguments for each function
+    repeats : int
+        Number of timed runs
+    warmup : int
+        Number of untimed runs
+    name1 name2 : str
+        Names used in the returned dictionary
+
+    Returns
+    -------
+    dict
+        Timing result for each function and speedup as func2 mean divided by func1 mean
+
+    Raises
+    ------
+    ValueError
+        If timing settings are invalid
+
+    Complexity
+    ----------
+    Time O repeats plus warmup calls for both functions
+    Space O repeats
+    """
     if kwargs1 is None:
         kwargs1 = {}
 
@@ -55,7 +117,35 @@ def compare_functions(func1, func2, args=(), kwargs1=None, kwargs2=None, repeats
 
 
 def benchmark_suite(tasks, repeats=5, warmup=1):
-    """Runs benchmarks for a list of tasks"""
+    """
+    Run benchmarks for a list of named tasks
+
+    Parameters
+    ----------
+    tasks : list
+        Each task should contain name and func with optional args and kwargs
+    repeats : int
+        Number of timed runs for each task
+    warmup : int
+        Number of untimed runs for each task
+
+    Returns
+    -------
+    list
+        List of dictionaries with name mean std min and max
+
+    Raises
+    ------
+    KeyError
+        If a task is missing name or func
+    ValueError
+        If timing settings are invalid
+
+    Complexity
+    ----------
+    Time O number of tasks times timing cost
+    Space O number of tasks
+    """
     results = []
 
     for task in tasks:
@@ -78,7 +168,28 @@ def benchmark_suite(tasks, repeats=5, warmup=1):
 
 
 def print_benchmark_table(results):
-    """Prints benchmark results in a table"""
+    """
+    Print benchmark results in a simple table
+
+    Parameters
+    ----------
+    results : list
+        Benchmark summary dictionaries with name mean std min and max
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    KeyError
+        If a result is missing a required field
+
+    Complexity
+    ----------
+    Time O r where r is number of results
+    Space O 1
+    """
     print(f"{'Task':<25} {'Mean (s)':<12} {'Std (s)':<12} {'Min (s)':<12} {'Max (s)':<12}")
     print("-" * 73)
 
@@ -94,7 +205,39 @@ def print_benchmark_table(results):
 
 def benchmark_vectorized_vs_loop(vectorized_func, loop_func, args=(), repeats=5, warmup=1,
                                  vectorized_name="vectorized", loop_name="loop"):
-    """Compares a vectorized function with a loop function"""
+    """
+    Benchmark a vectorized function against a loop function
+
+    Parameters
+    ----------
+    vectorized_func : callable
+        Vectorized implementation to time
+    loop_func : callable
+        Loop based implementation to time
+    args : tuple
+        Positional arguments passed to both functions
+    repeats : int
+        Number of timed runs
+    warmup : int
+        Number of untimed runs
+    vectorized_name loop_name : str
+        Names used in printed output and returned data
+
+    Returns
+    -------
+    dict
+        Timing comparison and speedup
+
+    Raises
+    ------
+    ValueError
+        If timing settings are invalid
+
+    Complexity
+    ----------
+    Time O timing cost for both functions
+    Space O repeats
+    """
     results = compare_functions(
         vectorized_func,
         loop_func,

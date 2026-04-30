@@ -2,10 +2,61 @@ import numpy as np
 
 
 class Pipeline:
-    """Runs steps one after another"""
+    """
+    Run named processing steps one after another
+
+    Parameters
+    ----------
+    steps : list
+        List of name and object pairs
+        Middle steps should have fit and transform
+        The last step can have fit transform or predict depending on use
+
+    Attributes
+    ----------
+    steps : list
+        Original ordered list of steps
+    named_steps : dict
+        Dictionary used to access steps by name
+
+    Raises
+    ------
+    ValueError
+        If steps is empty names are invalid names repeat or objects are None
+    TypeError
+        If a step is not a name and object pair
+
+    Complexity
+    ----------
+    Time O s to validate where s is number of steps
+    Space O s
+    """
 
     def __init__(self, steps):
-        """Sets up the pipeline with named steps"""
+        """
+        Set up the pipeline with named steps
+
+        Parameters
+        ----------
+        steps : list
+            Non empty list of tuples like name and object
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If steps is empty or contains invalid duplicate names
+        TypeError
+            If any step is not a tuple with two values
+
+        Complexity
+        ----------
+        Time O s
+        Space O s
+        """
         if not isinstance(steps, list) or len(steps) == 0:
             raise ValueError("steps must be a non-empty list")
 
@@ -30,7 +81,31 @@ class Pipeline:
             self.named_steps[name] = obj
 
     def fit(self, X, y=None):
-        """Fits each step in order"""
+        """
+        Fit the pipeline on input data
+
+        Parameters
+        ----------
+        X : array like
+            Input data with shape n_samples by n_features
+        y : array like or None
+            Optional target values for the final estimator
+
+        Returns
+        -------
+        Pipeline
+            The fitted pipeline
+
+        Raises
+        ------
+        TypeError
+            If a middle step does not have fit and transform
+
+        Complexity
+        ----------
+        Time O sum of step fit and transform costs
+        Space depends on transformed data size
+        """
         X_current = X
 
         # Fit and transform every step before the last one
@@ -52,7 +127,29 @@ class Pipeline:
         return self
 
     def transform(self, X):
-        """Transforms the data through every step"""
+        """
+        Transform data through every step
+
+        Parameters
+        ----------
+        X : array like
+            Input data with shape n_samples by n_features
+
+        Returns
+        -------
+        array like
+            Transformed data from the final step
+
+        Raises
+        ------
+        TypeError
+            If any step does not have transform
+
+        Complexity
+        ----------
+        Time O sum of step transform costs
+        Space depends on transformed data size
+        """
         X_current = X
 
         for name, step in self.steps:
@@ -64,7 +161,31 @@ class Pipeline:
         return X_current
 
     def fit_transform(self, X, y=None):
-        """Fits and transforms all steps"""
+        """
+        Fit each step then transform the data
+
+        Parameters
+        ----------
+        X : array like
+            Input data with shape n_samples by n_features
+        y : array like or None
+            Optional target values
+
+        Returns
+        -------
+        array like
+            Final transformed data
+
+        Raises
+        ------
+        TypeError
+            If any step does not have fit and transform
+
+        Complexity
+        ----------
+        Time O sum of step fit and transform costs
+        Space depends on transformed data size
+        """
         X_current = X
 
         for name, step in self.steps:
@@ -77,7 +198,29 @@ class Pipeline:
         return X_current
 
     def predict(self, X):
-        """Transforms the data then predicts"""
+        """
+        Transform data through preprocessing steps then predict
+
+        Parameters
+        ----------
+        X : array like
+            Input data with shape n_samples by n_features
+
+        Returns
+        -------
+        array like
+            Predictions returned by the last step
+
+        Raises
+        ------
+        TypeError
+            If a preprocessing step cannot transform or the last step cannot predict
+
+        Complexity
+        ----------
+        Time O transform costs plus final predict cost
+        Space depends on transformed data and prediction size
+        """
         X_current = X
 
         for name, step in self.steps[:-1]:
@@ -95,10 +238,59 @@ class Pipeline:
 
 
 class FeatureUnion:
-    """Combines outputs from many transformers"""
+    """
+    Run many transformers on the same data and join their outputs
+
+    Parameters
+    ----------
+    transformers : list
+        List of name and transformer pairs
+
+    Attributes
+    ----------
+    transformers : list
+        Original ordered list of transformers
+    named_transformers : dict
+        Dictionary used to access transformers by name
+
+    Raises
+    ------
+    ValueError
+        If transformers is empty or names repeat
+    TypeError
+        If a transformer entry is not a name and object pair
+
+    Complexity
+    ----------
+    Time O t to validate where t is number of transformers
+    Space O t
+    """
 
     def __init__(self, transformers):
-        """Sets up the feature union"""
+        """
+        Set up the feature union
+
+        Parameters
+        ----------
+        transformers : list
+            Non empty list of tuples like name and transformer
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If transformers is empty or names repeat
+        TypeError
+            If any transformer is not a tuple with two values
+
+        Complexity
+        ----------
+        Time O t
+        Space O t
+        """
         if not isinstance(transformers, list) or len(transformers) == 0:
             raise ValueError("transformers must be a non-empty list")
 
@@ -117,7 +309,31 @@ class FeatureUnion:
             self.named_transformers[name] = transformer
 
     def fit(self, X, y=None):
-        """Fits every transformer on the same data"""
+        """
+        Fit every transformer on the same input data
+
+        Parameters
+        ----------
+        X : array like
+            Input data with shape n_samples by n_features
+        y : array like or None
+            Optional target values currently not used
+
+        Returns
+        -------
+        FeatureUnion
+            The fitted feature union
+
+        Raises
+        ------
+        TypeError
+            If a transformer does not have fit
+
+        Complexity
+        ----------
+        Time O sum of transformer fit costs
+        Space O one transformer at a time
+        """
         for name, transformer in self.transformers:
             if not hasattr(transformer, "fit"):
                 raise TypeError(f"transformer '{name}' does not have fit()")
@@ -127,7 +343,29 @@ class FeatureUnion:
         return self
 
     def transform(self, X):
-        """Transforms data and joins the results"""
+        """
+        Transform data with each transformer and join the columns
+
+        Parameters
+        ----------
+        X : array like
+            Input data with shape n_samples by n_features
+
+        Returns
+        -------
+        numpy.ndarray
+            Joined feature matrix with shape n_samples by total_output_features
+
+        Raises
+        ------
+        TypeError
+            If a transformer does not have transform
+
+        Complexity
+        ----------
+        Time O sum of transformer transform costs plus output join cost
+        Space O size of all transformer outputs
+        """
         outputs = []
 
         for name, transformer in self.transformers:
@@ -145,12 +383,40 @@ class FeatureUnion:
         return np.hstack(outputs)
 
     def fit_transform(self, X, y=None):
-        """Fits all transformers then returns joined output"""
+        """
+        Fit all transformers then return the joined output
+
+        Parameters
+        ----------
+        X : array like
+            Input data with shape n_samples by n_features
+        y : array like or None
+            Optional target values currently not used
+
+        Returns
+        -------
+        numpy.ndarray
+            Joined feature matrix
+
+        Raises
+        ------
+        TypeError
+            If a transformer does not have fit or transform
+
+        Complexity
+        ----------
+        Time O fit costs plus transform costs
+        Space O size of all transformer outputs
+        """
         self.fit(X, y)
         return self.transform(X)
 
 
 class Compose(Pipeline):
-    """Another name for Pipeline"""
+    """
+    Alias for Pipeline
+
+    This gives another name for the same pipeline behaviour
+    """
 
     pass

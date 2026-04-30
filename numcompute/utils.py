@@ -3,7 +3,27 @@ import numpy as np
 
 def euclidean_distance(a, b):
     """
-    Compute Euclidean distance between two vectors.
+    Compute Euclidean distance between two vectors
+
+    Parameters
+    ----------
+    a b : array like
+        Input vectors with the same shape
+
+    Returns
+    -------
+    float
+        Square root of the sum of squared differences
+
+    Raises
+    ------
+    ValueError
+        If a and b do not have the same shape
+
+    Complexity
+    ----------
+    Time O n
+    Space O n
     """
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
@@ -16,7 +36,27 @@ def euclidean_distance(a, b):
 
 def manhattan_distance(a, b):
     """
-    Compute Manhattan distance between two vectors.
+    Compute Manhattan distance between two vectors
+
+    Parameters
+    ----------
+    a b : array like
+        Input vectors with the same shape
+
+    Returns
+    -------
+    float
+        Sum of absolute differences
+
+    Raises
+    ------
+    ValueError
+        If a and b do not have the same shape
+
+    Complexity
+    ----------
+    Time O n
+    Space O n
     """
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
@@ -29,7 +69,27 @@ def manhattan_distance(a, b):
 
 def cosine_similarity(a, b):
     """
-    Compute cosine similarity between two vectors.
+    Compute cosine similarity between two vectors
+
+    Parameters
+    ----------
+    a b : array like
+        Input vectors with the same shape
+
+    Returns
+    -------
+    float
+        Cosine similarity between a and b
+
+    Raises
+    ------
+    ValueError
+        If shapes do not match or either vector has zero length
+
+    Complexity
+    ----------
+    Time O n
+    Space O n
     """
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
@@ -48,7 +108,22 @@ def cosine_similarity(a, b):
 
 def sigmoid(x):
     """
-    Compute sigmoid activation.
+    Compute sigmoid activation
+
+    Parameters
+    ----------
+    x : array like
+        Input values with any shape
+
+    Returns
+    -------
+    numpy.ndarray
+        Sigmoid values with the same shape as x
+
+    Complexity
+    ----------
+    Time O n
+    Space O n
     """
     x = np.asarray(x, dtype=float)
     return 1 / (1 + np.exp(-x))
@@ -56,7 +131,22 @@ def sigmoid(x):
 
 def relu(x):
     """
-    Compute ReLU activation.
+    Compute ReLU activation
+
+    Parameters
+    ----------
+    x : array like
+        Input values with any shape
+
+    Returns
+    -------
+    numpy.ndarray
+        ReLU values with the same shape as x
+
+    Complexity
+    ----------
+    Time O n
+    Space O n
     """
     x = np.asarray(x, dtype=float)
     return np.maximum(0, x)
@@ -64,7 +154,28 @@ def relu(x):
 
 def softmax(x, axis=-1):
     """
-    Compute softmax in a numerically stable way.
+    Compute softmax in a numerically stable way
+
+    Parameters
+    ----------
+    x : array like
+        Input values with any shape
+    axis : int
+        Axis used for the softmax calculation
+
+    Returns
+    -------
+    numpy.ndarray
+        Softmax values with the same shape as x
+
+    Notes
+    -----
+    The maximum value is subtracted before exponentiation to reduce overflow
+
+    Complexity
+    ----------
+    Time O n
+    Space O n
     """
     x = np.asarray(x, dtype=float)
 
@@ -77,7 +188,30 @@ def softmax(x, axis=-1):
 
 def logsumexp(x, axis=None, keepdims=False):
     """
-    Compute log(sum(exp(x))) in a numerically stable way.
+    Compute log sum exp in a numerically stable way
+
+    Parameters
+    ----------
+    x : array like
+        Input values with any shape
+    axis : int or None
+        Axis used for the calculation
+    keepdims : bool
+        If true the reduced axis is kept in the output
+
+    Returns
+    -------
+    numpy.ndarray or float
+        Log sum exp result
+
+    Notes
+    -----
+    The maximum value is subtracted before exponentiation to reduce overflow
+
+    Complexity
+    ----------
+    Time O n
+    Space O n
     """
     x = np.asarray(x, dtype=float)
 
@@ -91,7 +225,31 @@ def logsumexp(x, axis=None, keepdims=False):
 
 def top_k_indices(x, k, largest=True):
     """
-    Return indices of top-k elements.
+    Return indices of the top k values
+
+    Parameters
+    ----------
+    x : array like
+        One dimensional input array
+    k : int
+        Number of values to return
+    largest : bool
+        If true return largest values otherwise return smallest values
+
+    Returns
+    -------
+    numpy.ndarray
+        Indices of the selected values with shape k
+
+    Raises
+    ------
+    ValueError
+        If x is not one dimensional or k is out of range
+
+    Complexity
+    ----------
+    Time O n average because argpartition is used
+    Space O k plus partition workspace
     """
     x = np.asarray(x)
 
@@ -113,7 +271,31 @@ def top_k_indices(x, k, largest=True):
 
 def top_k_values(x, k, largest=True):
     """
-    Return top-k values.
+    Return the top k values
+
+    Parameters
+    ----------
+    x : array like
+        One dimensional input array
+    k : int
+        Number of values to return
+    largest : bool
+        If true return largest values otherwise return smallest values
+
+    Returns
+    -------
+    numpy.ndarray
+        Selected values with shape k
+
+    Raises
+    ------
+    ValueError
+        If x is not one dimensional or k is out of range
+
+    Complexity
+    ----------
+    Time O n average because argpartition is used
+    Space O k plus partition workspace
     """
     x = np.asarray(x)
 
@@ -123,7 +305,33 @@ def top_k_values(x, k, largest=True):
 
 def make_batches(X, batch_size, shuffle=False, random_state=None):
     """
-    Yield mini-batches from input data.
+    Yield mini batches from input data
+
+    Parameters
+    ----------
+    X : array like
+        Input data where the first axis is samples
+    batch_size : int
+        Number of rows in each batch
+    shuffle : bool
+        If true rows are shuffled before batching
+    random_state : int or None
+        Seed for reproducible shuffling
+
+    Yields
+    ------
+    numpy.ndarray
+        Batch of X with at most batch_size rows
+
+    Raises
+    ------
+    ValueError
+        If batch_size is not positive
+
+    Complexity
+    ----------
+    Time O n
+    Space O n for indices
     """
     X = np.asarray(X)
 
@@ -144,7 +352,35 @@ def make_batches(X, batch_size, shuffle=False, random_state=None):
 
 def make_batches_xy(X, y, batch_size, shuffle=False, random_state=None):
     """
-    Yield mini-batches from X and y together.
+    Yield mini batches from X and y together
+
+    Parameters
+    ----------
+    X : array like
+        Input data where the first axis is samples
+    y : array like
+        Target values with the same number of rows as X
+    batch_size : int
+        Number of rows in each batch
+    shuffle : bool
+        If true rows are shuffled before batching
+    random_state : int or None
+        Seed for reproducible shuffling
+
+    Yields
+    ------
+    tuple
+        Batch of X and matching batch of y
+
+    Raises
+    ------
+    ValueError
+        If X and y row counts differ or batch_size is not positive
+
+    Complexity
+    ----------
+    Time O n
+    Space O n for indices
     """
     X = np.asarray(X)
     y = np.asarray(y)
