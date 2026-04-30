@@ -25,6 +25,7 @@ class Stats:
         list[int]
             Indices of columns with dtype 'int' or 'float'.
         """
+        
         return [idx for idx, col in enumerate(data.cols) if col.dtype in ['int', 'float']]
 
     @staticmethod
@@ -50,6 +51,8 @@ class Stats:
             Mean value(s) depending on axis.
         """
         numeric_col_idx = Stats._get_numeric_cols(data)
+        if len(numeric_col_idx) == 0:
+            raise ValueError("No numeric columns found")
         numeric_data = data.data[:, numeric_col_idx].astype(float)
 
         mean_func = np.nanmean if ignore_nan else np.mean
@@ -85,6 +88,8 @@ class Stats:
             Median value(s) depending on axis.
         """
         numeric_col_idx = Stats._get_numeric_cols(data)
+        if len(numeric_col_idx) == 0:
+            raise ValueError("No numeric columns found")
         numeric_data = data.data[:, numeric_col_idx].astype(float)
 
         median_func = np.nanmedian if ignore_nan else np.median
@@ -120,6 +125,8 @@ class Stats:
             Standard deviation value(s) depending on axis.
         """
         numeric_col_idx = Stats._get_numeric_cols(data)
+        if len(numeric_col_idx) == 0:
+            raise ValueError("No numeric columns found")
         numeric_data = data.data[:, numeric_col_idx].astype(float)
 
         std_func = np.nanstd if ignore_nan else np.std
@@ -153,6 +160,8 @@ class Stats:
             Minimum value(s) depending on axis.
         """
         numeric_col_idx = Stats._get_numeric_cols(data)
+        if len(numeric_col_idx) == 0:
+            raise ValueError("No numeric columns found")
         numeric_data = data.data[:, numeric_col_idx].astype(float)
 
         if axis is None:
@@ -184,6 +193,8 @@ class Stats:
             Maximum value(s) depending on axis.
         """
         numeric_col_idx = Stats._get_numeric_cols(data)
+        if len(numeric_col_idx) == 0:
+            raise ValueError("No numeric columns found")
         numeric_data = data.data[:, numeric_col_idx].astype(float)
 
         if axis is None:
@@ -222,6 +233,8 @@ class Stats:
             raise ValueError("q must be between 0 and 1")
 
         numeric_col_idx = Stats._get_numeric_cols(data)
+        if len(numeric_col_idx) == 0:
+            raise ValueError("No numeric columns found")
         numeric_data = data.data[:, numeric_col_idx].astype(float)
 
         quantile_func = np.nanquantile if ignore_nan else np.quantile

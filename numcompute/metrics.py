@@ -95,7 +95,6 @@ class Classification:
         float
         """
         y_true, y_pred = Classification._validate_inputs(y_true, y_pred)
-
         tp, tn, fp, fn = Classification.confusion_matrix(y_true, y_pred)
         return tp / (tp + fp) if tp + fp > 0 else 0
 
@@ -109,7 +108,6 @@ class Classification:
         float
         """
         y_true, y_pred = Classification._validate_inputs(y_true, y_pred)
-
         tp, tn, fp, fn = Classification.confusion_matrix(y_true, y_pred)
         return tp / (tp + fn) if tp + fn > 0 else 0
 
@@ -123,7 +121,6 @@ class Classification:
         float
         """
         y_true, y_pred = Classification._validate_inputs(y_true, y_pred)
-
         precision = Classification.precision(y_true, y_pred)
         recall = Classification.recall(y_true, y_pred)
         return 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0
@@ -144,7 +141,6 @@ class Regression:
         """
         y_true = np.asarray(y_true)
         y_pred = np.asarray(y_pred)
-
         if y_true.shape != y_pred.shape:
             raise ValueError("y_true and y_pred must have the same shape")
 
