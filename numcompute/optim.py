@@ -2,9 +2,7 @@ import numpy as np
 
 
 def grad(f, x, h=1e-5, method="central"):
-    """
-    Compute the gradient of a scalar function using finite differences.
-    """
+    """Finds the gradient using finite differences"""
     x = np.asarray(x, dtype=float)
 
     # Convert scalar input into a 1D array
@@ -37,8 +35,10 @@ def grad(f, x, h=1e-5, method="central"):
             g[i] = (f(x1) - fx) / h
 
     return g
+
+
 def jacobian(F, x, h=1e-5, method="central"):
-   
+    """Finds the Jacobian matrix using finite differences"""
     x = np.asarray(x, dtype=float)
 
     # Convert scalar input into 1D array
@@ -78,10 +78,9 @@ def jacobian(F, x, h=1e-5, method="central"):
 
     return J
 
+
 def line_search(f, x, direction, alpha=1.0, rho=0.5, c=1e-4, max_iter=50):
-    """
-    Perform backtracking line search using the Armijo condition.
-    """
+    """Finds a good step size by reducing alpha"""
     x = np.asarray(x, dtype=float)
     direction = np.asarray(direction, dtype=float)
 

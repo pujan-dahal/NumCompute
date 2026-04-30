@@ -2,7 +2,10 @@ import numpy as np
 
 
 class Pipeline:
+    """Runs steps one after another"""
+
     def __init__(self, steps):
+        """Sets up the pipeline with named steps"""
         if not isinstance(steps, list) or len(steps) == 0:
             raise ValueError("steps must be a non-empty list")
 
@@ -27,8 +30,10 @@ class Pipeline:
             self.named_steps[name] = obj
 
     def fit(self, X, y=None):
+        """Fits each step in order"""
         X_current = X
 
+        # Fit and transform every step before the last one
         for name, step in self.steps[:-1]:
             if not hasattr(step, "fit") or not hasattr(step, "transform"):
                 raise TypeError(f"step '{name}' must have fit() and transform()")
@@ -47,6 +52,7 @@ class Pipeline:
         return self
 
     def transform(self, X):
+        """Transforms the data through every step"""
         X_current = X
 
         for name, step in self.steps:
@@ -58,6 +64,7 @@ class Pipeline:
         return X_current
 
     def fit_transform(self, X, y=None):
+        """Fits and transforms all steps"""
         X_current = X
 
         for name, step in self.steps:
@@ -70,6 +77,7 @@ class Pipeline:
         return X_current
 
     def predict(self, X):
+        """Transforms the data then predicts"""
         X_current = X
 
         for name, step in self.steps[:-1]:
@@ -87,7 +95,10 @@ class Pipeline:
 
 
 class FeatureUnion:
+    """Combines outputs from many transformers"""
+
     def __init__(self, transformers):
+        """Sets up the feature union"""
         if not isinstance(transformers, list) or len(transformers) == 0:
             raise ValueError("transformers must be a non-empty list")
 
@@ -106,6 +117,7 @@ class FeatureUnion:
             self.named_transformers[name] = transformer
 
     def fit(self, X, y=None):
+        """Fits every transformer on the same data"""
         for name, transformer in self.transformers:
             if not hasattr(transformer, "fit"):
                 raise TypeError(f"transformer '{name}' does not have fit()")
@@ -115,6 +127,7 @@ class FeatureUnion:
         return self
 
     def transform(self, X):
+        """Transforms data and joins the results"""
         outputs = []
 
         for name, transformer in self.transformers:
@@ -123,6 +136,7 @@ class FeatureUnion:
 
             output = np.asarray(transformer.transform(X))
 
+            # Make one dimensional output into one column
             if output.ndim == 1:
                 output = output.reshape(-1, 1)
 
@@ -131,9 +145,12 @@ class FeatureUnion:
         return np.hstack(outputs)
 
     def fit_transform(self, X, y=None):
+        """Fits all transformers then returns joined output"""
         self.fit(X, y)
         return self.transform(X)
 
 
 class Compose(Pipeline):
+    """Another name for Pipeline"""
+
     pass

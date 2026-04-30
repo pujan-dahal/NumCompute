@@ -3,16 +3,14 @@ import numpy as np
 
 
 def time_function(func, *args, repeats=5, warmup=1, **kwargs):
-    """
-    Time a function over multiple runs.
-    """
+    """Times a function over many runs"""
     if repeats <= 0:
         raise ValueError("repeats must be positive")
 
     if warmup < 0:
         raise ValueError("warmup must be non-negative")
 
-    # Warm-up runs
+    # Run first without timing
     for _ in range(warmup):
         func(*args, **kwargs)
 
@@ -37,9 +35,7 @@ def time_function(func, *args, repeats=5, warmup=1, **kwargs):
 
 def compare_functions(func1, func2, args=(), kwargs1=None, kwargs2=None, repeats=5, warmup=1,
                       name1="vectorized", name2="loop"):
-    """
-    Compare runtime of two functions.
-    """
+    """Compares how long two functions take"""
     if kwargs1 is None:
         kwargs1 = {}
 
@@ -59,9 +55,7 @@ def compare_functions(func1, func2, args=(), kwargs1=None, kwargs2=None, repeats
 
 
 def benchmark_suite(tasks, repeats=5, warmup=1):
-    """
-    Run benchmarking for a list of tasks.
-    """
+    """Runs benchmarks for a list of tasks"""
     results = []
 
     for task in tasks:
@@ -84,9 +78,7 @@ def benchmark_suite(tasks, repeats=5, warmup=1):
 
 
 def print_benchmark_table(results):
-    """
-    Print benchmark results in a simple table.
-    """
+    """Prints benchmark results in a table"""
     print(f"{'Task':<25} {'Mean (s)':<12} {'Std (s)':<12} {'Min (s)':<12} {'Max (s)':<12}")
     print("-" * 73)
 
@@ -102,9 +94,7 @@ def print_benchmark_table(results):
 
 def benchmark_vectorized_vs_loop(vectorized_func, loop_func, args=(), repeats=5, warmup=1,
                                  vectorized_name="vectorized", loop_name="loop"):
-    """
-    Benchmark vectorized function against loop-based function.
-    """
+    """Compares a vectorized function with a loop function"""
     results = compare_functions(
         vectorized_func,
         loop_func,
