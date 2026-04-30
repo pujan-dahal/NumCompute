@@ -1,20 +1,3 @@
-"""
-tests/test_io_preprocessing.py
-================================
-Unit tests for numcompute.io and numcompute.preprocessing.
-
-Covers:
-* Normal operation (happy paths)
-* Edge cases: empty arrays, single row/column, all-NaN columns,
-  constant columns, extreme values, mismatched feature counts
-* Numerical correctness checks using np.allclose
-
-Run with:  pytest tests/test_io_preprocessing.py -v
-
-Author : (your name)
-Day 4  : Initial test suite — 25 test cases total
-"""
-
 import os
 import tempfile
 import numpy as np
@@ -40,9 +23,8 @@ from numcompute.preprocessing import (
 )
 
 
-# ===========================================================================
 # Helpers — write temporary CSV files for io tests
-# ===========================================================================
+
 
 def _write_temp_csv(content: str) -> str:
     """Write *content* to a NamedTemporaryFile and return its path."""
@@ -62,9 +44,7 @@ def _cleanup(path: str) -> None:
         pass
 
 
-# ===========================================================================
 # io.py tests
-# ===========================================================================
 
 class TestLoadCsv:
     """Tests for load_csv — the primary CSV loader."""
@@ -213,9 +193,7 @@ class TestLoadCsvChunked:
             _cleanup(path)
 
 
-# ===========================================================================
 # preprocessing.py tests
-# ===========================================================================
 
 class TestStandardScaler:
     """Tests for StandardScaler."""
