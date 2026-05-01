@@ -18,7 +18,7 @@ Framework: pytest
 import numpy as np
 import pytest
 
-from numcompute.rank import rank, rankdata, rank_with_ties, percentile, percentiles
+from numcompute.ranks import rank, rankdata, rank_with_ties, percentile, percentiles
 
 
 # ---------------- EMPTY ----------------
