@@ -324,7 +324,8 @@ class IO:
             dtype=str,
             encoding="utf-8",
             missing_values=missing_value,
-            filling_values=fill_value
+            filling_values=fill_value,
+            ndmin=2 # minimum 2 dimensions as we need it when only one column is there in the csv file
         )
 
         cols = IO._get_cols(data=data, has_headers=has_headers)
