@@ -108,7 +108,7 @@ def cosine_similarity(a, b):
 
 def sigmoid(x):
     """
-    Compute sigmoid activation
+    Compute sigmoid activation in a numerically stable way.
 
     Parameters
     ----------
@@ -126,7 +126,15 @@ def sigmoid(x):
     Space O n
     """
     x = np.asarray(x, dtype=float)
-    return 1 / (1 + np.exp(-x))
+    out = np.empty_like(x, dtype=float)
+
+    positive = x >= 0
+    out[positive] = 1.0 / (1.0 + np.exp(-x[positive]))
+
+    exp_x = np.exp(x[~positive])
+    out[~positive] = exp_x / (1.0 + exp_x)
+
+    return out
 
 
 def relu(x):
@@ -188,7 +196,7 @@ def softmax(x, axis=-1):
 
 def logsumexp(x, axis=None, keepdims=False):
     """
-    Compute log sum exp in a numerically stable way
+    Compute log sum exp in a numerically stable way.
 
     Parameters
     ----------
@@ -206,7 +214,8 @@ def logsumexp(x, axis=None, keepdims=False):
 
     Notes
     -----
-    The maximum value is subtracted before exponentiation to reduce overflow
+    The maximum value is subtracted before exponentiation to reduce overflow.
+    If all values along the reduction axis are -inf, the result is -inf.
 
     Complexity
     ----------
@@ -216,12 +225,22 @@ def logsumexp(x, axis=None, keepdims=False):
     x = np.asarray(x, dtype=float)
 
     max_x = np.max(x, axis=axis, keepdims=True)
-    out = max_x + np.log(np.sum(np.exp(x - max_x), axis=axis, keepdims=True))
+    all_negative_inf = np.isneginf(max_x)
+
+    safe_max = np.where(all_negative_inf, 0.0, max_x)
+    exp_sum = np.sum(np.exp(x - safe_max), axis=axis, keepdims=True)
+
+    # Avoid log(0) warnings for all -inf slices. The final result for those
+    # slices is correctly set to -inf below.
+    safe_sum = np.where(all_negative_inf, 1.0, exp_sum)
+    out = safe_max + np.log(safe_sum)
+    out = np.where(all_negative_inf, -np.inf, out)
 
     if not keepdims:
         out = np.squeeze(out, axis=axis)
 
     return out
+
 
 def top_k_indices(x, k, largest=True):
     """

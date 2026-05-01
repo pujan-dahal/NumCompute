@@ -144,6 +144,10 @@ class IO:
         """
         Infer column names and data types from raw CSV data.
 
+        The dtype decision uses all non-missing values in each column, not only
+        the first value. This avoids treating ["1", "2.5"] as an integer
+        column and accidentally truncating 2.5 to 2.
+
         Args:
             data (np.ndarray): Raw CSV data as string array.
             has_headers (bool): Whether first row contains headers.
@@ -151,58 +155,50 @@ class IO:
         Returns:
             List[Column]: List of inferred column metadata.
         """
+        def is_null(val):
+            return str(val).strip().lower() in ("", "none", "null", "nan")
+
+        def is_bool(val):
+            return str(val).strip().lower() in ("true", "false")
+
         def is_int(val):
             try:
-                int(val)
-                return True
+                value = float(str(val).strip())
+                return value.is_integer()
             except (ValueError, TypeError):
                 return False
 
         def is_float(val):
             try:
-                float(val)
+                float(str(val).strip())
                 return True
             except (ValueError, TypeError):
                 return False
 
-        def is_bool(val):
-            return str(val).strip().lower() in ("true", "false")
-
-        def is_null(val):
-            return str(val).strip().lower() in ("", "none", "null", "nan")
-
-        def identify_type(val):
-            val = str(val).strip()
-            if is_null(val):   return "NoneType"
-            if is_bool(val):   return "bool"
-            if is_int(val):    return "int"
-            if is_float(val):  return "float"
-            return "str"
-
-        v_is_null = np.vectorize(is_null)
-        v_identify_type = np.vectorize(identify_type)
-
         num_cols = data.shape[1]
-        null_mask = v_is_null(data)
-        valid_mask = ~null_mask
-
-        cols = []
 
         if has_headers:
             col_names = data[0].astype(str).tolist()
         else:
             col_names = [f"col_{i}" for i in range(num_cols)]
 
+        start_row = int(has_headers)
+        cols = []
+
         for col_idx in range(num_cols):
-            col_valid = valid_mask[int(has_headers):, col_idx]
+            raw_col = data[start_row:, col_idx]
+            valid_values = [val for val in raw_col if not is_null(val)]
 
-            if not col_valid.any():
+            if len(valid_values) == 0:
                 dtype = "NoneType"
-                continue
-
-            valid_values = data[int(has_headers):, col_idx][col_valid]
-            types = v_identify_type(valid_values)
-            dtype = types[0]
+            elif all(is_bool(val) for val in valid_values):
+                dtype = "bool"
+            elif all(is_int(val) for val in valid_values):
+                dtype = "int"
+            elif all(is_float(val) for val in valid_values):
+                dtype = "float"
+            else:
+                dtype = "str"
 
             cols.append(Column(
                 name=col_names[col_idx],
@@ -221,10 +217,8 @@ class IO:
         """
         Convert raw string data into appropriate NumPy dtypes.
 
-        Handles:
-        - Integer, float, boolean, and string conversion
-        - Missing values replacement
-        - Mixed-type columns (fallback to object)
+        Handles integer, float, boolean, string, and all-missing columns.
+        Mixed-type columns are kept as string/object columns.
 
         Args:
             data (np.ndarray): Raw CSV data.
@@ -243,35 +237,24 @@ class IO:
         v_is_null = np.vectorize(is_null)
         converted_cols = []
 
+        fill_lookup = {
+            "nan": np.nan,
+            "none": None,
+        }
+        fill = fill_lookup.get(str(fill_value).lower(), fill_value)
+
         for idx, col in enumerate(cols):
             raw_col = data[:, idx]
             dtype = col.dtype
-
-            fill_dict = {
-                'nan': np.nan,
-                'none': None
-            }
-            fill = fill_dict[fill_value.lower()]
-
             null_mask = v_is_null(raw_col)
 
-            if np.all(null_mask):
-                if dtype == 'str':
-                    converted = np.full(raw_col.shape, None, dtype=object)
-                else:
-                    converted = np.full(raw_col.shape, np.nan)
-                converted_cols.append(converted)
-                continue
-
-            elif dtype == "int":
+            if dtype == "int":
                 converted = np.full(raw_col.shape, np.nan, dtype=float)
-                valid_values = raw_col[~null_mask].astype(float)
-                converted[~null_mask] = valid_values.astype(int)
+                converted[~null_mask] = raw_col[~null_mask].astype(float).astype(int)
 
             elif dtype == "float":
                 converted = np.full(raw_col.shape, np.nan, dtype=float)
-                valid_values = raw_col[~null_mask].astype(float)
-                converted[~null_mask] = valid_values
+                converted[~null_mask] = raw_col[~null_mask].astype(float)
 
             elif dtype == "bool":
                 lowered = np.char.lower(raw_col.astype(str))
@@ -285,7 +268,7 @@ class IO:
                 converted[~null_mask] = raw_col[~null_mask].astype(str)
 
             else:
-                converted = np.where(null_mask, np.nan, raw_col).astype(object)
+                converted = np.full(raw_col.shape, fill, dtype=object)
 
             converted_cols.append(converted)
 

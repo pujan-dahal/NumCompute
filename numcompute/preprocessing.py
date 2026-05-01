@@ -317,7 +317,9 @@ class OneHotEncoder(_BaseScaler):
     """
     Convert categorical features into one-hot encoded vectors.
 
-    Each category is represented as a binary vector.
+    This encoder accepts categorical values such as strings, numbers, booleans,
+    and missing values. Missing values are ignored when categories are learned
+    and are encoded as all zeros during transform.
     """
 
     def __init__(
@@ -337,39 +339,77 @@ class OneHotEncoder(_BaseScaler):
         self.categories_: Optional[List[np.ndarray]] = None
         self.n_features_in_: Optional[int] = None
 
+    @staticmethod
+    def _validate_categorical(
+        X: np.ndarray,
+        fitted_attr: Optional[str] = None,
+        obj=None,
+    ) -> np.ndarray:
+        """Validate categorical input without forcing numeric conversion."""
+        X = np.asarray(X, dtype=object)
+
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        if X.ndim != 2:
+            raise ValueError(
+                f"X must be 2-D (n_samples, n_features), got shape {X.shape}."
+            )
+
+        if fitted_attr is not None and obj is not None:
+            if not hasattr(obj, fitted_attr) or getattr(obj, fitted_attr) is None:
+                raise RuntimeError(
+                    "This transformer has not been fitted yet. "
+                    "Call fit(X) before transform(X)."
+                )
+
+        return X
+
+    @staticmethod
+    def _missing_mask(X: np.ndarray) -> np.ndarray:
+        """Return True for common missing categorical values."""
+        def is_missing(value):
+            if value is None:
+                return True
+            try:
+                if isinstance(value, float) and np.isnan(value):
+                    return True
+            except TypeError:
+                pass
+            return str(value).strip().lower() in {"", "none", "null", "nan"}
+
+        return np.frompyfunc(is_missing, 1, 1)(X).astype(bool)
+
+    @staticmethod
+    def _unique_values(values: np.ndarray) -> np.ndarray:
+        """Get unique values, with fallback for mixed object types."""
+        try:
+            return np.unique(values)
+        except TypeError:
+            seen = []
+            for value in values.tolist():
+                if value not in seen:
+                    seen.append(value)
+            return np.asarray(seen, dtype=object)
+
     def fit(self, X: np.ndarray) -> "OneHotEncoder":
-        """
-        Learn unique categories per feature.
-
-        Args:
-            X (np.ndarray): Input categorical data.
-
-        Returns:
-            OneHotEncoder: Fitted encoder.
-        """
-        X = self._validate(X)
+        """Learn unique categories per feature."""
+        X = self._validate_categorical(X)
         self.n_features_in_ = X.shape[1]
-
         self.categories_ = []
+
+        missing = self._missing_mask(X)
 
         for col_idx in range(X.shape[1]):
             col = X[:, col_idx]
-            unique_vals = np.unique(col[~np.isnan(col)])
-            self.categories_.append(unique_vals)
+            valid_col = col[~missing[:, col_idx]]
+            self.categories_.append(self._unique_values(valid_col))
 
         return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """
-        Transform categorical data into one-hot encoding.
-
-        Args:
-            X (np.ndarray): Input data.
-
-        Returns:
-            np.ndarray: Encoded data.
-        """
-        X = self._validate(X, fitted_attr="categories_", obj=self)
+        """Transform categorical data into one-hot encoding."""
+        X = self._validate_categorical(X, fitted_attr="categories_", obj=self)
 
         if X.shape[1] != self.n_features_in_:
             raise ValueError(
@@ -386,6 +426,9 @@ class OneHotEncoder(_BaseScaler):
                 indicators = indicators[:, 1:]
 
             output_blocks.append(indicators)
+
+        if not output_blocks:
+            return np.empty((X.shape[0], 0), dtype=self.dtype)
 
         return np.hstack(output_blocks)
 

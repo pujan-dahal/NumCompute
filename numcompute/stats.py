@@ -309,3 +309,122 @@ class Stats:
 
         else:
             raise ValueError("axis must be None, 0, or 1")
+    @staticmethod
+    def streaming_mean(data: CSVData, ignore_nan: bool = True):
+        """
+        Compute global mean over numeric columns using Welford's streaming update.
+
+        This processes values one at a time, so it is useful for large datasets
+        or streamed chunks where keeping all values in memory is not ideal.
+
+        Parameters
+        ----------
+        data : CSVData
+            Input CSV data.
+        ignore_nan : bool, default True
+            Whether to skip NaN values.
+
+        Returns
+        -------
+        float
+            Streaming mean of all numeric values.
+        """
+        numeric_col_idx = Stats._get_numeric_cols(data)
+        if len(numeric_col_idx) == 0:
+            raise ValueError("No numeric columns found")
+
+        values = data.data[:, numeric_col_idx].astype(float).ravel()
+        stream = StreamingStats(ignore_nan=ignore_nan)
+        stream.update_many(values)
+        return stream.mean
+
+    @staticmethod
+    def streaming_variance(data: CSVData, ddof: int = 0, ignore_nan: bool = True):
+        """
+        Compute global variance over numeric columns using Welford's algorithm.
+
+        Parameters
+        ----------
+        data : CSVData
+            Input CSV data.
+        ddof : int, default 0
+            Delta degrees of freedom. Use 0 for population variance and 1 for
+            sample variance.
+        ignore_nan : bool, default True
+            Whether to skip NaN values.
+
+        Returns
+        -------
+        float
+            Streaming variance of all numeric values.
+        """
+        numeric_col_idx = Stats._get_numeric_cols(data)
+        if len(numeric_col_idx) == 0:
+            raise ValueError("No numeric columns found")
+
+        values = data.data[:, numeric_col_idx].astype(float).ravel()
+        stream = StreamingStats(ignore_nan=ignore_nan)
+        stream.update_many(values)
+        return stream.variance(ddof=ddof)
+
+
+class StreamingStats:
+    """
+    Streaming mean and variance using Welford's algorithm.
+
+    The class can be updated value by value or with an array. It stores only the
+    count, current mean, and M2 accumulator, so memory usage is constant.
+    """
+
+    def __init__(self, ignore_nan: bool = True):
+        self.ignore_nan = ignore_nan
+        self.n = 0
+        self._mean = 0.0
+        self._m2 = 0.0
+
+    def update(self, value):
+        """Add one value to the stream."""
+        value = float(value)
+
+        if np.isnan(value):
+            if self.ignore_nan:
+                return self
+            self._mean = np.nan
+            self._m2 = np.nan
+            self.n += 1
+            return self
+
+        self.n += 1
+        delta = value - self._mean
+        self._mean += delta / self.n
+        delta2 = value - self._mean
+        self._m2 += delta * delta2
+        return self
+
+    def update_many(self, values):
+        """Add multiple values to the stream."""
+        values = np.asarray(values, dtype=float).ravel()
+        for value in values:
+            self.update(value)
+        return self
+
+    @property
+    def mean(self):
+        """Current streaming mean."""
+        if self.n == 0:
+            raise ValueError("stream contains no valid values")
+        return self._mean
+
+    def variance(self, ddof: int = 0):
+        """Current streaming variance."""
+        if ddof < 0:
+            raise ValueError("ddof must be non-negative")
+        if self.n == 0:
+            raise ValueError("stream contains no valid values")
+        if self.n - ddof <= 0:
+            return np.nan
+        return self._m2 / (self.n - ddof)
+
+    def std(self, ddof: int = 0):
+        """Current streaming standard deviation."""
+        return np.sqrt(self.variance(ddof=ddof))
