@@ -428,3 +428,161 @@ class StreamingStats:
     def std(self, ddof: int = 0):
         """Current streaming standard deviation."""
         return np.sqrt(self.variance(ddof=ddof))
+
+
+
+class StreamingStats:
+    """
+    Maintain running statistics for numeric stream chunks.
+
+    The class tracks count, mean, variance and raw values for exact quantiles.
+    """
+
+    def __init__(self):
+        self.n_features_in_ = None
+        self.count_ = None
+        self.mean_ = None
+        self.m2_ = None
+        self.values_ = None
+
+    def update_stats(self, X_chunk):
+        """Update running statistics from a new chunk."""
+        X = np.asarray(X_chunk, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        if X.ndim != 2:
+            raise ValueError(f"X_chunk must be 2-D, got shape {X.shape}")
+        if self.n_features_in_ is None:
+            self.n_features_in_ = X.shape[1]
+            self.count_ = np.zeros(X.shape[1], dtype=float)
+            self.mean_ = np.zeros(X.shape[1], dtype=float)
+            self.m2_ = np.zeros(X.shape[1], dtype=float)
+            self.values_ = [np.asarray([], dtype=float) for _ in range(X.shape[1])]
+        elif X.shape[1] != self.n_features_in_:
+            raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+        valid = ~np.isnan(X)
+        chunk_count = valid.sum(axis=0).astype(float)
+        safe_values = np.where(valid, X, 0.0)
+        chunk_mean = np.divide(safe_values.sum(axis=0), chunk_count, out=np.zeros(X.shape[1]), where=chunk_count > 0)
+        centered = np.where(valid, X - chunk_mean, 0.0)
+        chunk_m2 = np.sum(centered * centered, axis=0)
+        old_count = self.count_
+        new_count = old_count + chunk_count
+        delta = chunk_mean - self.mean_
+        self.mean_ = np.where(new_count > 0, self.mean_ + delta * np.divide(chunk_count, new_count, out=np.zeros_like(new_count), where=new_count > 0), self.mean_)
+        self.m2_ = self.m2_ + chunk_m2 + delta * delta * old_count * np.divide(chunk_count, new_count, out=np.zeros_like(new_count), where=new_count > 0)
+        self.count_ = new_count
+        for col_idx in range(X.shape[1]):
+            vals = X[:, col_idx][valid[:, col_idx]]
+            if vals.size:
+                self.values_[col_idx] = np.concatenate([self.values_[col_idx], vals])
+        return self
+
+    def mean(self):
+        """Return running column means."""
+        return self.mean_.copy()
+
+    def variance(self, ddof=0):
+        """Return running column variances."""
+        denom = np.maximum(self.count_ - ddof, 1.0)
+        return self.m2_ / denom
+
+    def quantile(self, q):
+        """Return exact running quantiles for each column."""
+        return np.asarray([np.quantile(vals, q) if vals.size else np.nan for vals in self.values_])
+
+    def histogram(self, bins=10):
+        """Return histograms for each running numeric column."""
+        return [np.histogram(vals, bins=bins) for vals in self.values_]
+
+
+class StreamingStats:
+    """
+    Maintain streaming statistics for scalars or numeric chunks.
+
+    Supports the original scalar API (`update`, `update_many`, `mean`,
+    `variance`) and the Assignment 2.2 chunk API (`update_stats`, `quantile`,
+    `histogram`).
+    """
+
+    def __init__(self, ignore_nan: bool = True):
+        self.ignore_nan = ignore_nan
+        self.n_features_in_ = None
+        self.count_ = None
+        self.mean_ = None
+        self.m2_ = None
+        self.values_ = None
+
+    def update(self, value):
+        """Add one scalar value to the stream."""
+        return self.update_stats(np.asarray([value], dtype=float).reshape(-1, 1))
+
+    def update_many(self, values):
+        """Add multiple scalar values to the stream."""
+        values = np.asarray(values, dtype=float).reshape(-1, 1)
+        return self.update_stats(values)
+
+    def update_stats(self, X_chunk):
+        """Update running statistics from a new chunk."""
+        X = np.asarray(X_chunk, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        if X.ndim != 2:
+            raise ValueError(f"X_chunk must be 2-D, got shape {X.shape}")
+        if not self.ignore_nan and np.isnan(X).any():
+            X = np.full_like(X, np.nan, dtype=float)
+        if self.n_features_in_ is None:
+            self.n_features_in_ = X.shape[1]
+            self.count_ = np.zeros(X.shape[1], dtype=float)
+            self.mean_ = np.zeros(X.shape[1], dtype=float)
+            self.m2_ = np.zeros(X.shape[1], dtype=float)
+            self.values_ = [np.asarray([], dtype=float) for _ in range(X.shape[1])]
+        elif X.shape[1] != self.n_features_in_:
+            raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+        valid = ~np.isnan(X)
+        chunk_count = valid.sum(axis=0).astype(float)
+        safe_values = np.where(valid, X, 0.0)
+        chunk_mean = np.divide(safe_values.sum(axis=0), chunk_count, out=np.zeros(X.shape[1]), where=chunk_count > 0)
+        centered = np.where(valid, X - chunk_mean, 0.0)
+        chunk_m2 = np.sum(centered * centered, axis=0)
+        old_count = self.count_
+        new_count = old_count + chunk_count
+        delta = chunk_mean - self.mean_
+        self.mean_ = np.where(new_count > 0, self.mean_ + delta * np.divide(chunk_count, new_count, out=np.zeros_like(new_count), where=new_count > 0), self.mean_)
+        self.m2_ = self.m2_ + chunk_m2 + delta * delta * old_count * np.divide(chunk_count, new_count, out=np.zeros_like(new_count), where=new_count > 0)
+        self.count_ = new_count
+        for col_idx in range(X.shape[1]):
+            vals = X[:, col_idx][valid[:, col_idx]]
+            if vals.size:
+                self.values_[col_idx] = np.concatenate([self.values_[col_idx], vals])
+        return self
+
+    @property
+    def mean(self):
+        """Return current mean as a scalar or column vector."""
+        if self.count_ is None or np.sum(self.count_) == 0:
+            raise ValueError("stream contains no valid values")
+        return float(self.mean_[0]) if self.mean_.size == 1 else self.mean_.copy()
+
+    def variance(self, ddof: int = 0):
+        """Return current variance as a scalar or column vector."""
+        if ddof < 0:
+            raise ValueError("ddof must be non-negative")
+        if self.count_ is None or np.sum(self.count_) == 0:
+            raise ValueError("stream contains no valid values")
+        denom = self.count_ - ddof
+        var = np.divide(self.m2_, denom, out=np.full_like(self.m2_, np.nan), where=denom > 0)
+        return float(var[0]) if var.size == 1 else var
+
+    def std(self, ddof: int = 0):
+        """Return current standard deviation."""
+        return np.sqrt(self.variance(ddof=ddof))
+
+    def quantile(self, q):
+        """Return exact running quantiles for each column."""
+        values = np.asarray([np.quantile(vals, q) if vals.size else np.nan for vals in self.values_])
+        return float(values[0]) if values.size == 1 else values
+
+    def histogram(self, bins=10):
+        """Return histograms for each running numeric column."""
+        return [np.histogram(vals, bins=bins) for vals in self.values_]

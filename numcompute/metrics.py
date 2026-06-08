@@ -160,3 +160,72 @@ class Regression:
         """
         y_true, y_pred = Regression._validate_inputs(y_true, y_pred)
         return np.mean(np.square(y_true - y_pred))
+
+
+class StreamingClassificationMetric:
+    """
+    Accumulate classification metrics over stream chunks.
+
+    Parameters
+    ----------
+    metric : {'accuracy', 'precision', 'recall', 'f1'}, default 'accuracy'
+        Metric returned by result().
+    positive_label : int or str, default 1
+        Positive class used for binary precision, recall and F1.
+    window_size : int or None, default None
+        Optional rolling window measured in samples.
+    """
+
+    def __init__(self, metric="accuracy", positive_label=1, window_size=None):
+        if metric not in {"accuracy", "precision", "recall", "f1"}:
+            raise ValueError("metric must be one of accuracy, precision, recall, f1")
+        self.metric = metric
+        self.positive_label = positive_label
+        self.window_size = window_size
+        self.reset()
+
+    def reset(self):
+        """Reset accumulated metric state."""
+        self.y_true_ = np.asarray([], dtype=object)
+        self.y_pred_ = np.asarray([], dtype=object)
+        return self
+
+    def update(self, y_true_chunk, y_pred_chunk):
+        """Update metric state using one stream chunk."""
+        y_true, y_pred = Classification._validate_inputs(y_true_chunk, y_pred_chunk)
+        self.y_true_ = np.concatenate([self.y_true_, y_true.astype(object)])
+        self.y_pred_ = np.concatenate([self.y_pred_, y_pred.astype(object)])
+        if self.window_size is not None and self.y_true_.size > self.window_size:
+            self.y_true_ = self.y_true_[-self.window_size:]
+            self.y_pred_ = self.y_pred_[-self.window_size:]
+        return self
+
+    def result(self):
+        """Return the selected accumulated metric."""
+        if self.y_true_.size == 0:
+            return 0.0
+        y_true = self.y_true_
+        y_pred = self.y_pred_
+        if self.metric == "accuracy":
+            return float(np.mean(y_true == y_pred))
+        tp = np.sum((y_true == self.positive_label) & (y_pred == self.positive_label))
+        fp = np.sum((y_true != self.positive_label) & (y_pred == self.positive_label))
+        fn = np.sum((y_true == self.positive_label) & (y_pred != self.positive_label))
+        precision = tp / (tp + fp) if tp + fp > 0 else 0.0
+        recall = tp / (tp + fn) if tp + fn > 0 else 0.0
+        if self.metric == "precision":
+            return float(precision)
+        if self.metric == "recall":
+            return float(recall)
+        return float(2 * precision * recall / (precision + recall)) if precision + recall > 0 else 0.0
+
+    def confusion_matrix(self, labels=None):
+        """Return an accumulated multi-class confusion matrix."""
+        if labels is None:
+            labels = np.unique(np.concatenate([self.y_true_, self.y_pred_]))
+        labels = np.asarray(labels)
+        matrix = np.zeros((labels.size, labels.size), dtype=int)
+        for row_idx, true_label in enumerate(labels):
+            for col_idx, pred_label in enumerate(labels):
+                matrix[row_idx, col_idx] = np.sum((self.y_true_ == true_label) & (self.y_pred_ == pred_label))
+        return matrix

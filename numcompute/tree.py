@@ -1,32 +1,61 @@
-"""Small chunk based decision tree classifier built with only NumPy."""
-from __future__ import annotations
+"""
+Decision tree models for NumCompute.
+
+Provides a small decision tree classifier with a stream-compatible API. The
+classifier keeps cumulative chunks and rebuilds a depth-limited tree on each
+partial update. This keeps the implementation simple, deterministic and easy to
+inspect for learning purposes while still supporting online-style usage.
+"""
+
 import numpy as np
 
 
-class _Node:
-    """Internal tree node used by DecisionTreeClassifier."""
+class _TreeNode:
+    """Internal node used by DecisionTreeClassifier."""
 
-    __slots__ = ("prediction", "proba", "feature", "threshold", "left", "right", "depth")
-
-    def __init__(self, prediction=None, proba=None, feature=None, threshold=None, left=None, right=None, depth=0):
+    def __init__(self, prediction, feature_index=None, threshold=None, left=None, right=None):
         self.prediction = prediction
-        self.proba = proba
-        self.feature = feature
+        self.feature_index = feature_index
         self.threshold = threshold
         self.left = left
         self.right = right
-        self.depth = depth
 
     @property
     def is_leaf(self):
-        """bool: True when this node does not split any further."""
+        """Return True when this node has no children."""
         return self.left is None and self.right is None
 
 
 class DecisionTreeClassifier:
-    """Depth-limited decision tree classifier with chunk-wise partial_fit."""
+    """
+    Depth-limited decision tree classifier.
+
+    Parameters
+    ----------
+    max_depth : int, default 5
+        Maximum tree depth.
+    min_samples_split : int, default 2
+        Minimum samples required to attempt a split.
+    max_features : int or None, default None
+        Number of features considered per split. None uses all features.
+    criterion : {'gini', 'entropy'}, default 'gini'
+        Impurity function used to score splits.
+    random_state : int or None, default None
+        Seed used when max_features is smaller than the feature count.
+
+    Attributes
+    ----------
+    classes_ : np.ndarray
+        Sorted class labels learned from training data.
+    root_ : _TreeNode
+        Root node of the fitted tree.
+    """
 
     def __init__(self, max_depth=5, min_samples_split=2, max_features=None, criterion="gini", random_state=None):
+        if max_depth < 0:
+            raise ValueError("max_depth must be non-negative")
+        if min_samples_split < 2:
+            raise ValueError("min_samples_split must be at least 2")
         if criterion not in {"gini", "entropy"}:
             raise ValueError("criterion must be 'gini' or 'entropy'")
         self.max_depth = max_depth
@@ -34,172 +63,180 @@ class DecisionTreeClassifier:
         self.max_features = max_features
         self.criterion = criterion
         self.random_state = random_state
-        self.rng_ = np.random.default_rng(random_state)
         self.root_ = None
         self.classes_ = None
         self.n_features_in_ = None
-
-        self._X = None
-        self._y = None
+        self._X_seen = None
+        self._y_seen = None
+        self._rng = np.random.default_rng(random_state)
 
     def fit(self, X, y):
-        """Fit the tree from scratch on one complete dataset."""
-        self._X = self._y = None
-        return self.partial_fit(X, y)
+        """
+        Fit the tree using a complete batch of data.
 
-    def partial_fit(self, X_chunk, y_chunk, classes=None):
-        """Update the tree using a new incoming chunk."""
-        X, y = self._validate_xy(X_chunk, y_chunk)
-        if self.n_features_in_ is None:
-            self.n_features_in_ = X.shape[1]
-        elif X.shape[1] != self.n_features_in_:
+        Parameters
+        ----------
+        X : array like
+            Feature matrix with shape (n_samples, n_features).
+        y : array like
+            Target labels with shape (n_samples,).
+
+        Returns
+        -------
+        DecisionTreeClassifier
+            The fitted classifier.
+        """
+        X, y = self._validate_xy(X, y)
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
+        self._X_seen = X.copy()
+        self._y_seen = y.copy()
+        self.root_ = self._build_tree(X, y, depth=0)
+        return self
+
+    def partial_fit(self, X, y, classes=None):
+        """
+        Update the classifier with a new stream chunk.
+
+        New data is appended to the internal training cache and the tree is
+        rebuilt. Rebuilding is acceptable here because the assignment focuses on
+        transparent algorithm design rather than production-scale throughput.
+        """
+        X, y = self._validate_xy(X, y)
+
+        if self.n_features_in_ is not None and X.shape[1] != self.n_features_in_:
             raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
 
-        if classes is not None and self.classes_ is None:
-            self.classes_ = np.asarray(classes)
+        if self._X_seen is None:
+            self._X_seen = X.copy()
+            self._y_seen = y.copy()
+        else:
+            self._X_seen = np.vstack([self._X_seen, X])
+            self._y_seen = np.concatenate([self._y_seen, y])
 
-        # keep the old chunks, then rebuild
-        self._X = X.copy() if self._X is None else np.vstack([self._X, X])
-        self._y = y.copy() if self._y is None else np.concatenate([self._y, y])
-        self.classes_ = np.unique(self._y) if self.classes_ is None else np.unique(np.concatenate([self.classes_, np.unique(y)]))
-        self.root_ = self._build(self._X, self._y, depth=0)
+        self.classes_ = np.unique(self._y_seen if classes is None else np.concatenate([self._y_seen, np.asarray(classes)]))
+        self.n_features_in_ = self._X_seen.shape[1]
+        self.root_ = self._build_tree(self._X_seen, self._y_seen, depth=0)
         return self
 
     def predict(self, X):
-        """Predict class labels for X."""
-        if self.root_ is None:
-            raise ValueError("This DecisionTreeClassifier has not been fitted yet")
-        X = self._validate_x(X)
-        return np.array([self._predict_row(row, self.root_) for row in X])
+        """
+        Predict labels for input samples.
 
-    def predict_proba(self, X):
-        """Predict class probabilities for each row in X."""
-        if self.root_ is None:
-            raise ValueError("This DecisionTreeClassifier has not been fitted yet")
-        X = self._validate_x(X)
-        out = []
-        for row in X:
-            node = self.root_
-            while not node.is_leaf:
-                val = row[node.feature]
-                node = node.left if (np.isnan(val) or val <= node.threshold) else node.right
-            out.append(node.proba)
-        return np.vstack(out)
+        Parameters
+        ----------
+        X : array like
+            Feature matrix.
 
-    def _validate_x(self, X):
-        """Convert feature input to a clean 2-D float array."""
-        X = np.asarray(X, dtype=float)
+        Returns
+        -------
+        np.ndarray
+            Predicted labels.
+        """
+        if self.root_ is None:
+            raise RuntimeError("DecisionTreeClassifier has not been fitted")
+        X = self._validate_X(X)
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+        return np.asarray([self._predict_row(row, self.root_) for row in X])
+
+    def _validate_X(self, X):
+        try:
+            X = np.asarray(X, dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"X must be numeric. Original error: {exc}")
         if X.ndim == 1:
             X = X.reshape(1, -1)
         if X.ndim != 2:
             raise ValueError(f"X must be 2-D, got shape {X.shape}")
-        if self.n_features_in_ is not None and X.shape[1] != self.n_features_in_:
-            raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
         return X
 
     def _validate_xy(self, X, y):
-        """Validate matching feature and target chunks."""
-        X = self._validate_x(X)
-        y = np.asarray(y).ravel()
+        X = self._validate_X(X)
+        y = np.asarray(y)
+        if y.ndim != 1:
+            y = y.ravel()
         if X.shape[0] != y.shape[0]:
-            raise ValueError(f"X and y have incompatible shapes: {X.shape[0]} samples vs {y.shape[0]} labels")
+            raise ValueError("X and y must contain the same number of samples")
+        if X.shape[0] == 0:
+            raise ValueError("training data must not be empty")
         return X, y
 
-    def _class_counts(self, y):
-        """Count labels using the fitted class order."""
-        return np.array([np.sum(y == c) for c in self.classes_], dtype=float)
-
-    def _leaf(self, y, depth):
-        """Create a leaf node with majority-class prediction."""
-        counts = self._class_counts(y)
-        prediction = self.classes_[int(np.argmax(counts))]
-        total = counts.sum()
-        proba = counts / total if total else np.ones(len(self.classes_)) / len(self.classes_)
-        return _Node(prediction=prediction, proba=proba, depth=depth)
+    def _majority_class(self, y):
+        classes, counts = np.unique(y, return_counts=True)
+        return classes[np.argmax(counts)]
 
     def _impurity(self, y):
-        """Compute Gini or entropy impurity for labels in a node."""
         if y.size == 0:
             return 0.0
-        p = self._class_counts(y) / y.size
-        p = p[p > 0]
-        if self.criterion == "entropy":
-            return float(-np.sum(p * np.log2(p)))
-        return float(1.0 - np.sum(p * p))
+        _, counts = np.unique(y, return_counts=True)
+        probs = counts / counts.sum()
+        if self.criterion == "gini":
+            return 1.0 - np.sum(probs * probs)
+        probs = probs[probs > 0]
+        return -np.sum(probs * np.log2(probs))
 
-    def _feature_indices(self, n_features):
-        """Choose which feature columns are allowed for the next split."""
-        if self.max_features is None:
-            k = n_features
-        elif isinstance(self.max_features, str):
-            k = max(1, int(np.sqrt(n_features))) if self.max_features == "sqrt" else max(1, int(np.log2(n_features)))
-        elif isinstance(self.max_features, float):
-            k = max(1, int(np.ceil(self.max_features * n_features)))
-        else:
-            k = int(self.max_features)
-        k = min(max(k, 1), n_features)
-        return self.rng_.choice(n_features, size=k, replace=False) if k < n_features else np.arange(n_features)
+    def _candidate_features(self, n_features):
+        if self.max_features is None or self.max_features >= n_features:
+            return np.arange(n_features)
+        if self.max_features <= 0:
+            raise ValueError("max_features must be positive or None")
+        return np.sort(self._rng.choice(n_features, size=self.max_features, replace=False))
 
     def _best_split(self, X, y):
-        """Find the feature and threshold that gives the best impurity gain."""
-        n, d = X.shape
-        base = self._impurity(y)
-        best_gain, best_feat, best_thr = 0.0, None, None
+        n_samples, n_features = X.shape
+        parent_impurity = self._impurity(y)
+        best_gain = 0.0
+        best_feature = None
+        best_threshold = None
 
-        for j in self._feature_indices(d):
-            col = X[:, j]
-            clean = col[~np.isnan(col)]
-            # if a column is all missing or constant, splitting on it will not help.
-            if clean.size == 0 or np.nanmin(clean) == np.nanmax(clean):
+        for feature_index in self._candidate_features(n_features):
+            feature_values = X[:, feature_index]
+            valid_mask = ~np.isnan(feature_values)
+            values = np.unique(feature_values[valid_mask])
+            if values.size <= 1:
                 continue
+            thresholds = (values[:-1] + values[1:]) / 2.0
 
-            thresholds = np.unique(clean)
-            # limit candidates so large chunks do not make the demo painfully slow.
-            if thresholds.size > 16:
-                thresholds = np.quantile(clean, np.linspace(0.05, 0.95, 16))
+            for threshold in thresholds:
+                left_mask = np.nan_to_num(feature_values, nan=np.inf) <= threshold
+                right_mask = ~left_mask
+                left_count = np.sum(left_mask)
+                right_count = n_samples - left_count
+                if left_count == 0 or right_count == 0:
+                    continue
+                left_impurity = self._impurity(y[left_mask])
+                right_impurity = self._impurity(y[right_mask])
+                child_impurity = (left_count / n_samples) * left_impurity + (right_count / n_samples) * right_impurity
+                gain = parent_impurity - child_impurity
+                if gain > best_gain:
+                    best_gain = gain
+                    best_feature = feature_index
+                    best_threshold = threshold
 
-            less_equal = col[:, None] <= thresholds[None, :]
-            nan_mask = np.isnan(col)[:, None]
-            left_masks = less_equal | nan_mask
-            left_counts = left_masks.sum(axis=0)
-            right_counts = n - left_counts
-            valid = (left_counts > 0) & (right_counts > 0)
+        return best_feature, best_threshold, best_gain
 
-            for idx in np.where(valid)[0]:
-                mask = left_masks[:, idx]
-                weighted = (mask.sum() * self._impurity(y[mask]) + (~mask).sum() * self._impurity(y[~mask])) / n
-                gain = base - weighted
-                if gain > best_gain + 1e-12:
-                    best_gain, best_feat, best_thr = gain, int(j), float(thresholds[idx])
-        return best_feat, best_thr
+    def _build_tree(self, X, y, depth):
+        prediction = self._majority_class(y)
+        if depth >= self.max_depth or y.size < self.min_samples_split or np.unique(y).size == 1:
+            return _TreeNode(prediction=prediction)
 
-    def _build(self, X, y, depth):
-        """Recursively grow a tree from the current retained stream."""
-        if y.size == 0 or np.unique(y).size == 1 or depth >= self.max_depth or y.size < self.min_samples_split:
-            return self._leaf(y, depth)
+        feature_index, threshold, gain = self._best_split(X, y)
+        if feature_index is None or gain <= 0.0:
+            return _TreeNode(prediction=prediction)
 
-        feat, thr = self._best_split(X, y)
-        if feat is None:
-            return self._leaf(y, depth)
-
-        mask = (X[:, feat] <= thr) | np.isnan(X[:, feat])
-        if mask.all() or (~mask).all():
-            return self._leaf(y, depth)
-
-        leaf = self._leaf(y, depth)
-        return _Node(
-            prediction=leaf.prediction,
-            proba=leaf.proba,
-            feature=feat,
-            threshold=thr,
-            left=self._build(X[mask], y[mask], depth + 1),
-            right=self._build(X[~mask], y[~mask], depth + 1),
-            depth=depth,
-        )
+        feature_values = X[:, feature_index]
+        left_mask = np.nan_to_num(feature_values, nan=np.inf) <= threshold
+        right_mask = ~left_mask
+        left = self._build_tree(X[left_mask], y[left_mask], depth + 1)
+        right = self._build_tree(X[right_mask], y[right_mask], depth + 1)
+        return _TreeNode(prediction=prediction, feature_index=feature_index, threshold=threshold, left=left, right=right)
 
     def _predict_row(self, row, node):
-        """Walk one row down the tree until a leaf is reached."""
         while not node.is_leaf:
-            val = row[node.feature]
-            node = node.left if (np.isnan(val) or val <= node.threshold) else node.right
+            value = row[node.feature_index]
+            if np.isnan(value) or value > node.threshold:
+                node = node.right
+            else:
+                node = node.left
         return node.prediction
