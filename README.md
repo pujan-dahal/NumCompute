@@ -245,14 +245,6 @@ demo/stream_demo.ipynb
 
 The notebook loads the provided Iris CSV using the custom `IO.load_csv()` pipeline, splits the data into chunks, trains a decision tree and an ensemble incrementally, logs streaming metrics, visualises accuracy trends, and compares model behaviour over the stream.
 
-A video narration guide is provided at:
-
-```text
-demo/demo_video_script.md
-```
-
----
-
 ## 5. Running the tests
 
 Run all unit tests from the project root:
