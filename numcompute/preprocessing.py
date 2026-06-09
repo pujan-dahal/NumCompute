@@ -550,3 +550,113 @@ class SimpleImputer(_BaseScaler):
                 X_out[col_mask, col_idx] = self.statistics_[col_idx]
 
         return X_out
+
+# ---------------------------------------------------------------------------
+# Streaming extensions
+# ---------------------------------------------------------------------------
+
+def _standard_scaler_partial_fit(self, X: np.ndarray) -> "StandardScaler":
+    """Update StandardScaler statistics from a stream chunk."""
+    X = self._validate(X)
+    if self.n_features_in_ is None:
+        self.n_features_in_ = X.shape[1]
+        self.n_samples_seen_ = np.zeros(X.shape[1], dtype=float)
+        self._m2_ = np.zeros(X.shape[1], dtype=float)
+        self.mean_ = np.zeros(X.shape[1], dtype=float) if self.with_mean else None
+        self.std_ = np.ones(X.shape[1], dtype=float) if self.with_std else None
+    elif X.shape[1] != self.n_features_in_:
+        raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+
+    valid = ~np.isnan(X)
+    chunk_count = valid.sum(axis=0).astype(float)
+    safe_values = np.where(valid, X, 0.0)
+    chunk_mean = np.divide(safe_values.sum(axis=0), chunk_count, out=np.zeros(X.shape[1]), where=chunk_count > 0)
+    centered = np.where(valid, X - chunk_mean, 0.0)
+    chunk_m2 = np.sum(centered * centered, axis=0)
+
+    old_count = self.n_samples_seen_
+    new_count = old_count + chunk_count
+    delta = chunk_mean - self.mean_
+    self.mean_ = np.where(new_count > 0, self.mean_ + delta * np.divide(chunk_count, new_count, out=np.zeros_like(new_count), where=new_count > 0), self.mean_)
+    self._m2_ = self._m2_ + chunk_m2 + delta * delta * old_count * np.divide(chunk_count, new_count, out=np.zeros_like(new_count), where=new_count > 0)
+    self.n_samples_seen_ = new_count
+
+    if self.with_std:
+        denom = np.maximum(new_count - self.ddof, 1.0)
+        var = self._m2_ / denom
+        self.std_ = np.where(var <= 0.0, 1.0, np.sqrt(var))
+    return self
+
+
+def _minmax_scaler_partial_fit(self, X: np.ndarray) -> "MinMaxScaler":
+    """Update MinMaxScaler statistics from a stream chunk."""
+    X = self._validate(X)
+    if self.n_features_in_ is None:
+        self.n_features_in_ = X.shape[1]
+        self.data_min_ = np.nanmin(X, axis=0)
+        self.data_max_ = np.nanmax(X, axis=0)
+    elif X.shape[1] != self.n_features_in_:
+        raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+    else:
+        self.data_min_ = np.fmin(self.data_min_, np.nanmin(X, axis=0))
+        self.data_max_ = np.fmax(self.data_max_, np.nanmax(X, axis=0))
+    data_range = self.data_max_ - self.data_min_
+    rmin, rmax = self.feature_range
+    safe_range = np.where(data_range == 0.0, 1.0, data_range)
+    self.scale_ = (rmax - rmin) / safe_range
+    self.min_ = rmin - self.data_min_ * self.scale_
+    return self
+
+
+def _onehot_partial_fit(self, X: np.ndarray) -> "OneHotEncoder":
+    """Update OneHotEncoder categories from a stream chunk."""
+    X = self._validate_categorical(X)
+    missing = self._missing_mask(X)
+    if self.categories_ is None:
+        self.n_features_in_ = X.shape[1]
+        self.categories_ = [np.asarray([], dtype=object) for _ in range(X.shape[1])]
+    elif X.shape[1] != self.n_features_in_:
+        raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+    for col_idx in range(X.shape[1]):
+        valid = X[:, col_idx][~missing[:, col_idx]]
+        if valid.size == 0:
+            continue
+        merged = np.concatenate([self.categories_[col_idx].astype(object), valid.astype(object)])
+        self.categories_[col_idx] = self._unique_values(merged)
+    return self
+
+
+def _imputer_partial_fit(self, X: np.ndarray) -> "SimpleImputer":
+    """Update imputation statistics from a stream chunk."""
+    X = self._validate(X)
+    if not hasattr(self, "_stream_values_") or self.n_features_in_ is None:
+        self.n_features_in_ = X.shape[1]
+        self._stream_values_ = [np.asarray([], dtype=float) for _ in range(X.shape[1])]
+    elif X.shape[1] != self.n_features_in_:
+        raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+    for col_idx in range(X.shape[1]):
+        valid = X[:, col_idx][~np.isnan(X[:, col_idx])]
+        if valid.size:
+            self._stream_values_[col_idx] = np.concatenate([self._stream_values_[col_idx], valid])
+    if self.strategy == "constant":
+        self.statistics_ = np.full(X.shape[1], self.fill_value)
+    elif self.strategy == "mean":
+        self.statistics_ = np.asarray([np.mean(v) if v.size else np.nan for v in self._stream_values_])
+    elif self.strategy == "median":
+        self.statistics_ = np.asarray([np.median(v) if v.size else np.nan for v in self._stream_values_])
+    else:
+        stats = []
+        for values in self._stream_values_:
+            if values.size == 0:
+                stats.append(np.nan)
+            else:
+                unique_vals, counts = np.unique(values, return_counts=True)
+                stats.append(unique_vals[np.argmax(counts)])
+        self.statistics_ = np.asarray(stats)
+    return self
+
+
+StandardScaler.partial_fit = _standard_scaler_partial_fit
+MinMaxScaler.partial_fit = _minmax_scaler_partial_fit
+OneHotEncoder.partial_fit = _onehot_partial_fit
+SimpleImputer.partial_fit = _imputer_partial_fit

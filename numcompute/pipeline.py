@@ -420,3 +420,35 @@ class Compose(Pipeline):
     """
 
     pass
+
+
+
+def _pipeline_partial_fit(self, X, y=None):
+    """
+    Incrementally fit pipeline steps and the final estimator.
+
+    Middle steps use partial_fit when available, otherwise fit. Each middle step
+    must still implement transform so the next step receives updated features.
+    """
+    X_current = X
+    for name, step in self.steps[:-1]:
+        if hasattr(step, "partial_fit"):
+            step.partial_fit(X_current)
+        elif hasattr(step, "fit"):
+            step.fit(X_current)
+        else:
+            raise TypeError(f"step '{name}' must have partial_fit() or fit()")
+        if not hasattr(step, "transform"):
+            raise TypeError(f"step '{name}' must have transform()")
+        X_current = step.transform(X_current)
+    last_name, last_step = self.steps[-1]
+    if not hasattr(last_step, "partial_fit"):
+        raise TypeError(f"last step '{last_name}' must have partial_fit()")
+    if y is None:
+        last_step.partial_fit(X_current)
+    else:
+        last_step.partial_fit(X_current, y)
+    return self
+
+
+Pipeline.partial_fit = _pipeline_partial_fit

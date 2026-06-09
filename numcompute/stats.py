@@ -529,6 +529,8 @@ class StreamingStats:
             X = X.reshape(-1, 1)
         if X.ndim != 2:
             raise ValueError(f"X_chunk must be 2-D, got shape {X.shape}")
+        if X.shape[0] == 0:
+            raise ValueError("X_chunk must contain at least one row")
         if not self.ignore_nan and np.isnan(X).any():
             X = np.full_like(X, np.nan, dtype=float)
         if self.n_features_in_ is None:
@@ -557,19 +559,22 @@ class StreamingStats:
                 self.values_[col_idx] = np.concatenate([self.values_[col_idx], vals])
         return self
 
+    def _require_values(self):
+        """Raise a clear error when the stream has no valid values."""
+        if self.count_ is None or np.sum(self.count_) == 0:
+            raise ValueError("stream contains no valid values")
+
     @property
     def mean(self):
         """Return current mean as a scalar or column vector."""
-        if self.count_ is None or np.sum(self.count_) == 0:
-            raise ValueError("stream contains no valid values")
+        self._require_values()
         return float(self.mean_[0]) if self.mean_.size == 1 else self.mean_.copy()
 
     def variance(self, ddof: int = 0):
         """Return current variance as a scalar or column vector."""
         if ddof < 0:
             raise ValueError("ddof must be non-negative")
-        if self.count_ is None or np.sum(self.count_) == 0:
-            raise ValueError("stream contains no valid values")
+        self._require_values()
         denom = self.count_ - ddof
         var = np.divide(self.m2_, denom, out=np.full_like(self.m2_, np.nan), where=denom > 0)
         return float(var[0]) if var.size == 1 else var
@@ -580,9 +585,15 @@ class StreamingStats:
 
     def quantile(self, q):
         """Return exact running quantiles for each column."""
+        if not 0 <= q <= 1:
+            raise ValueError("q must be between 0 and 1")
+        self._require_values()
         values = np.asarray([np.quantile(vals, q) if vals.size else np.nan for vals in self.values_])
         return float(values[0]) if values.size == 1 else values
 
     def histogram(self, bins=10):
         """Return histograms for each running numeric column."""
+        if bins <= 0:
+            raise ValueError("bins must be positive")
+        self._require_values()
         return [np.histogram(vals, bins=bins) for vals in self.values_]

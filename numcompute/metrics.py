@@ -147,6 +147,9 @@ class Regression:
         if y_true.shape != y_pred.shape:
             raise ValueError("y_true and y_pred must have the same shape")
 
+        if y_true.size == 0:
+            raise ValueError("regression inputs must not be empty")
+
         return y_true, y_pred
 
     @staticmethod

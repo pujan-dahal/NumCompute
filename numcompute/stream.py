@@ -49,9 +49,12 @@ class StreamTrainer:
 
     def score_chunk(self, X, y):
         """Predict and log performance for one stream chunk."""
-        y_pred = self.model.predict(X)
-        chunk_accuracy = float(np.mean(np.asarray(y_pred) == np.asarray(y)))
-        self.metric.update(y, y_pred)
+        y_true = np.asarray(y)
+        y_pred = np.asarray(self.model.predict(X))
+        if y_true.shape != y_pred.shape:
+            raise ValueError("y and predictions must have the same shape")
+        chunk_accuracy = float(np.mean(y_pred == y_true))
+        self.metric.update(y_true, y_pred)
         cumulative_accuracy = float(self.metric.result())
         self._chunk_index += 1
         self.logs["chunk"].append(self._chunk_index)
@@ -66,6 +69,7 @@ class StreamTrainer:
         return self.score_chunk(X, y)
 
     def _estimate_memory(self):
+        """Estimate memory used by common cached stream arrays."""
         total = sys.getsizeof(self.model)
         for attr in ("_X_seen", "_y_seen"):
             value = getattr(self.model, attr, None)
