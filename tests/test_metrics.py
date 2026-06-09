@@ -127,8 +127,8 @@ def test_mse_numpy_input():
 
 
 def test_empty_input():
-    """Test MSE behavior with empty inputs."""
+    """Test MSE raises a clear error for empty inputs."""
     y_true = []
     y_pred = []
-    result = Regression.mse(y_true, y_pred)
-    assert np.isnan(result)
+    with pytest.raises(ValueError, match="must not be empty"):
+        Regression.mse(y_true, y_pred)
