@@ -1,6 +1,6 @@
 # NumCompute: A High-Performance NumPy Toolkit
 
-NumCompute is a modular scientific-computing and machine-learning utility toolkit built using **plain Python and NumPy only**. It was developed for **Assignment 2.1: Programming Task 1** to demonstrate vectorised numerical programming, clean APIs, testing, benchmarking, and reusable ML-style workflow components.
+NumCompute is a modular scientific-computing and machine-learning utility toolkit built using **plain Python and NumPy only**. It was developed for **Assignment 2.1: Programming Task 1** and **Assignment 2.2: Programming Task 2** to demonstrate vectorised numerical programming, clean APIs, testing, benchmarking, and reusable ML-style workflow components.
 
 The project simulates a small part of a machine-learning library such as scikit-learn, but every core component is implemented from scratch using NumPy rather than external ML/data libraries.
 
@@ -20,7 +20,7 @@ Authors:
 | CSV input/output with missing values and dtype handling        | `numcompute/io.py`                          |
 | Preprocessing: scaling, imputation, one-hot encoding           | `numcompute/preprocessing.py`               |
 | Sorting, searching, top-k, quickselect, binary search          | `numcompute/sort_search.py`                 |
-| Ranking and percentiles with tie handling                      | `numcompute/rank.py`, `numcompute/ranks.py` |
+| Ranking and percentiles with tie handling                      | `numcompute/ranks.py` |
 | Descriptive statistics, histograms, quantiles                  | `numcompute/stats.py`                       |
 | Streaming statistics / Welford mean and variance               | `numcompute/stats.py`                       |
 | Classification and regression metrics                          | `numcompute/metrics.py`                     |
@@ -31,6 +31,26 @@ Authors:
 | Reproducible benchmark script                                  | `benchmark/run_benchmarks.py`               |
 | Unit tests with edge cases                                     | `tests/`                                    |
 | End-to-end demo notebook                                       | `demo/quickstart.ipynb`                     |
+
+### Assignment 2.2 extension checklist
+
+The current repository also includes an individual Assignment 2.2 extension completed by **Pujan Dahal (a3190289)**. This extension builds on the previous Assignment 2.1 package and adds streaming decision-tree learning, ensemble learning, streaming-compatible processing, visualisation, benchmarking, and a comprehensive Iris demo.
+
+| Assignment 2.2 requirement                                      | Implemented location                        |
+| --------------------------------------------------------------- | ------------------------------------------- |
+| Depth-limited decision tree classifier                          | `numcompute/tree.py`                        |
+| Tree-based ensemble classifier                                  | `numcompute/ensemble.py`                    |
+| Stream trainer with per-chunk logging                           | `numcompute/stream.py`                      |
+| Built-in matplotlib visualisation module                        | `numcompute/visualise.py`                   |
+| Streaming-compatible preprocessing updates                      | `numcompute/preprocessing.py`               |
+| Streaming-compatible metrics updates                            | `numcompute/metrics.py`                     |
+| Streaming-compatible statistics updates                         | `numcompute/stats.py`                       |
+| Incremental pipeline support                                    | `numcompute/pipeline.py`                    |
+| Compatibility import package                                    | `numcompute_stream/`                        |
+| Streaming benchmark script                                      | `benchmark/stream_benchmark.py`             |
+| Iris streaming demo notebook                                    | `demo/stream_demo.ipynb`                    |
+| Iris CSV dataset                                                | `demo/Iris.csv`                             |
+| Separate tests for new modules and streaming edge cases         | `tests/test_tree.py`, `tests/test_ensemble.py`, `tests/test_stream.py`, plus streaming tests |
 
 ---
 
@@ -63,6 +83,33 @@ NumCompute/
 └── requirements.txt
 ```
 
+Additional files added for Assignment 2.2:
+
+```text
+NumCompute/
+├── numcompute/
+│   ├── tree.py
+│   ├── ensemble.py
+│   ├── stream.py
+│   └── visualise.py
+├── numcompute_stream/
+├── tests/
+│   ├── test_tree.py
+│   ├── test_ensemble.py
+│   ├── test_stream.py
+│   ├── test_streaming_preprocessing.py
+│   ├── test_streaming_metrics.py
+│   ├── test_streaming_stats.py
+│   └── test_pipeline_streaming.py
+├── demo/
+│   ├── Iris.csv
+│   ├── stream_demo.ipynb
+│   └── demo_video_script.md
+├── benchmark/
+│   └── stream_benchmark.py
+└── report.docx
+```
+
 ---
 
 ## 3. Installation
@@ -86,6 +133,14 @@ numpy
 ```
 
 No external ML/DL/data libraries such as pandas, scikit-learn, TensorFlow, PyTorch, or SciPy are required for the core implementation.
+
+For Assignment 2.2 visualisation and notebook demonstration, install the additional lightweight tools:
+
+```bash
+python -m pip install matplotlib notebook nbclient
+```
+
+The Assignment 2.2 implementation still avoids external machine-learning and data-processing libraries such as pandas, scikit-learn, TensorFlow, PyTorch, and SciPy.
 
 ---
 
@@ -143,6 +198,59 @@ A markdown version of the notebook is also provided at:
 demo/quickstart_markdown.md
 ```
 
+### Assignment 2.2 streaming example
+
+```python
+import numpy as np
+
+from numcompute.pipeline import Pipeline
+from numcompute.preprocessing import SimpleImputer, StandardScaler
+from numcompute.tree import DecisionTreeClassifier
+from numcompute.stream import StreamTrainer
+
+X = np.array([
+    [0.0],
+    [0.2],
+    [1.0],
+    [1.2],
+    [0.1],
+    [1.1],
+])
+y = np.array([0, 0, 1, 1, 0, 1])
+
+chunks = [
+    (X[:3], y[:3]),
+    (X[3:], y[3:]),
+]
+
+pipe = Pipeline([
+    ("imputer", SimpleImputer(strategy="mean")),
+    ("scaler", StandardScaler()),
+    ("model", DecisionTreeClassifier(max_depth=2)),
+])
+
+trainer = StreamTrainer(pipe, classes=[0, 1])
+
+for X_chunk, y_chunk in chunks:
+    trainer.partial_fit_score(X_chunk, y_chunk)
+
+print(trainer.logs["cumulative_accuracy"])
+```
+
+For the Assignment 2.2 streaming demonstration, open:
+
+```text
+demo/stream_demo.ipynb
+```
+
+The notebook loads the provided Iris CSV using the custom `IO.load_csv()` pipeline, splits the data into chunks, trains a decision tree and an ensemble incrementally, logs streaming metrics, visualises accuracy trends, and compares model behaviour over the stream.
+
+A video narration guide is provided at:
+
+```text
+demo/demo_video_script.md
+```
+
 ---
 
 ## 5. Running the tests
@@ -166,6 +274,19 @@ The test suite covers more than the minimum requirement of 20 tests. It includes
 - finite-difference gradients and Jacobian shapes
 - pipeline validation and transformations
 
+Assignment 2.2 adds further tests for:
+
+- decision-tree fitting, prediction, tie handling, and invalid inputs
+- ensemble fitting, majority voting, bootstrap behaviour, and prediction validation
+- streaming trainer logs, cumulative accuracy, and memory estimates
+- visualisation input validation and saved matplotlib figures
+- streaming preprocessing with empty chunks, NaNs, zero variance, and unknown categories
+- streaming statistics with chunk updates, quantiles, histograms, and invalid bins
+- streaming metrics with rolling-window behaviour, reset behaviour, and shape mismatches
+- pipeline `partial_fit()` behaviour across preprocessing and model stages
+
+The current full test suite contains **238 passing tests**.
+
 ---
 
 ## 6. Running the benchmark script
@@ -187,6 +308,14 @@ Example output format:
 | MSE     | vectorised squared error  | manual loop squared error  | seconds + speedup |
 
 Exact timings depend on the computer, Python version, NumPy version, and system load. The benchmark script prints Python and NumPy version information to make the results reproducible.
+
+For the Assignment 2.2 streaming benchmark, run:
+
+```bash
+python benchmark/stream_benchmark.py
+```
+
+This script compares a single decision tree against a tree-based ensemble under chunk-wise learning. It reports streaming accuracy and update-time behaviour so the demo and report can discuss both predictive performance and computational cost.
 
 ---
 
@@ -211,6 +340,14 @@ The package is separated by responsibility:
 
 This structure improves readability, testing, and maintainability.
 
+For Assignment 2.2, the same modular structure is extended rather than replaced:
+
+- `tree.py` implements the decision-tree classifier.
+- `ensemble.py` manages multiple decision trees using bootstrap sampling and majority voting.
+- `stream.py` coordinates chunk-wise fitting, scoring, and logging.
+- `visualise.py` contains reusable plotting functions for streaming metrics and prediction checks.
+- `pipeline.py` supports incremental workflows through `partial_fit()`.
+
 ### Numerical stability
 
 The toolkit includes stable numerical forms such as:
@@ -221,6 +358,8 @@ The toolkit includes stable numerical forms such as:
 - NaN-aware statistics and preprocessing
 - safe handling of all-equal columns in scalers
 - explicit validation for empty inputs and shape mismatches
+
+Assignment 2.2 adds stability checks for streaming and tree-based learning, including NaN-safe split evaluation, deterministic tie resolution, zero-division handling in accumulated metrics, empty-chunk validation, zero-variance chunk handling, and feature-shape checks during prediction.
 
 ---
 
@@ -270,6 +409,38 @@ print(stream.mean)
 print(stream.variance(ddof=0))
 ```
 
+### Streaming decision tree
+
+```python
+from numcompute.tree import DecisionTreeClassifier
+
+model = DecisionTreeClassifier(max_depth=3, criterion="gini")
+model.partial_fit(X_chunk, y_chunk, classes=[0, 1, 2])
+y_pred = model.predict(X_next)
+```
+
+### Streaming ensemble
+
+```python
+from numcompute.ensemble import EnsembleClassifier
+
+ensemble = EnsembleClassifier(n_estimators=5, max_depth=3, random_state=7)
+ensemble.partial_fit(X_chunk, y_chunk, classes=[0, 1, 2])
+y_pred = ensemble.predict(X_next)
+```
+
+### Visualising streaming metrics
+
+```python
+from numcompute.visualise import plot_metric_over_time
+
+plot_metric_over_time(
+    metric_values=[0.70, 0.76, 0.81, 0.86],
+    title="Streaming Accuracy",
+    ylabel="Accuracy",
+)
+```
+
 ---
 
 ## 9. Team contribution notes
@@ -282,5 +453,13 @@ The final report should clearly identify each team member's contribution. Sugges
 | Shubham Kumar (a3173468)  | Rank, Sort-search and test cases                                |
 | Pujan Dahal (a3190289)    | Stats, Metrics, test cases and documentation                    |
 | Akardhan Dewan (a1992862) | Optim, Pipeline, Utils, Benchmark, test cases and documentation |
+
+### Assignment 2.2 individual contribution
+
+Assignment 2.2 is an individual extension to the previous NumCompute package. The Assignment 2.1 contribution notes above are left unchanged. The new Assignment 2.2 work in this repository was completed by **Pujan Dahal (a3190289)**.
+
+| Contributor | Assignment 2.2 contribution |
+| ----------- | --------------------------- |
+| Pujan Dahal (a3190289) | Implemented the streaming decision-tree learning framework, including `DecisionTreeClassifier`, `EnsembleClassifier`, `StreamTrainer`, built-in visualisation, streaming updates to preprocessing/statistics/metrics/pipeline modules, comprehensive edge-case tests, Iris streaming demo notebook, and individual technical report. |
 
 ---
