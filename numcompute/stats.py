@@ -370,69 +370,6 @@ class Stats:
 
 class StreamingStats:
     """
-    Streaming mean and variance using Welford's algorithm.
-
-    The class can be updated value by value or with an array. It stores only the
-    count, current mean, and M2 accumulator, so memory usage is constant.
-    """
-
-    def __init__(self, ignore_nan: bool = True):
-        self.ignore_nan = ignore_nan
-        self.n = 0
-        self._mean = 0.0
-        self._m2 = 0.0
-
-    def update(self, value):
-        """Add one value to the stream."""
-        value = float(value)
-
-        if np.isnan(value):
-            if self.ignore_nan:
-                return self
-            self._mean = np.nan
-            self._m2 = np.nan
-            self.n += 1
-            return self
-
-        self.n += 1
-        delta = value - self._mean
-        self._mean += delta / self.n
-        delta2 = value - self._mean
-        self._m2 += delta * delta2
-        return self
-
-    def update_many(self, values):
-        """Add multiple values to the stream."""
-        values = np.asarray(values, dtype=float).ravel()
-        for value in values:
-            self.update(value)
-        return self
-
-    @property
-    def mean(self):
-        """Current streaming mean."""
-        if self.n == 0:
-            raise ValueError("stream contains no valid values")
-        return self._mean
-
-    def variance(self, ddof: int = 0):
-        """Current streaming variance."""
-        if ddof < 0:
-            raise ValueError("ddof must be non-negative")
-        if self.n == 0:
-            raise ValueError("stream contains no valid values")
-        if self.n - ddof <= 0:
-            return np.nan
-        return self._m2 / (self.n - ddof)
-
-    def std(self, ddof: int = 0):
-        """Current streaming standard deviation."""
-        return np.sqrt(self.variance(ddof=ddof))
-
-
-
-class StreamingStats:
-    """
     Maintain running statistics for numeric stream chunks.
 
     The class tracks count, mean, variance and raw values for exact quantiles.
